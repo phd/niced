@@ -1,11 +1,15 @@
 #!/usr/bin/python3
 
+
+SCAN_WHOLE_TREE_DELAY = 2
+
+
+import re
 import signal
 import subprocess
 import sys
 import threading
 import time
-
 
 
 def sig_exit(sig, frame):
@@ -16,21 +20,101 @@ signal.signal(signal.SIGINT,  sig_exit)
 signal.signal(signal.SIGTERM, sig_exit)
 
 
-
 lock = threading.Lock()
+
 
 def scan_whole_tree():
     while (True):
         lock.acquire()
         print('scan_whole_tree()')
         lock.release()
-        time.sleep(2)
+        time.sleep(SCAN_WHOLE_TREE_DELAY)
 
-def process_line(line):
+
+class ProcessEntry(object):
+    def __init__(self, pid = None, command = None):
+        self.pid     = pid
+        self.command = command
+    def __str__(self):
+        return "ProcessEntry(\n" + \
+            "         pid={}\n".format(self.pid     ) + \
+            "     command={}\n".format(self.command ) + \
+            ")"
+
+class ForkstatEntry(object):
+    def __init__(self):
+        self.time     = None
+        self.event    = None
+        self.pid      = None
+        self.uid      = None
+        self.euid     = None
+        self.tty      = None
+        self.info     = None
+        self.duration = None
+        self.command  = None
+    def __str__(self):
+        return "ForkstatEntry(\n" + \
+            "        time={}\n".format(self.time    ) + \
+            "       event={}\n".format(self.event   ) + \
+            "         pid={}\n".format(self.pid     ) + \
+            "         uid={}\n".format(self.uid     ) + \
+            "        euid={}\n".format(self.euid    ) + \
+            "         tty={}\n".format(self.tty     ) + \
+            "        info={}\n".format(self.info    ) + \
+            "    duration={}\n".format(self.duration) + \
+            "     command={}\n".format(self.command ) + \
+            ")"
+
+def process_forkstat_line(line):
     lock.acquire()
-    print('process_line(): ', line)
+    line = re.sub(' +', ' ', line)
+    items = line.split(' ')
+    if (items[0] != 'Time'):
+        process = False;
+        forkstatEntry = ForkstatEntry()
+        forkstatEntry.time  = items[0]
+        forkstatEntry.event = items[1]
+        forkstatEntry.pid   = items[2]
+        forkstatEntry.uid   = items[3]
+        forkstatEntry.euid  = items[4]
+        forkstatEntry.tty   = items[5]
+        match (forkstatEntry.event):
+            case 'clone':
+                forkstatEntry.info     = items[6]
+                forkstatEntry.duration = None
+                forkstatEntry.command  = ' '.join(items[7:])
+                process  = (forkstatEntry.info == 'thread')
+            case 'comm':
+                forkstatEntry.info     = None
+                forkstatEntry.duration = None
+                forkstatEntry.command  = ' '.join(items[6:])
+                process  = False
+            case 'exec':
+                forkstatEntry.info     = None
+                forkstatEntry.duration = None
+                forkstatEntry.command  = ' '.join(items[6:])
+                process  = True
+            case 'exit':
+                forkstatEntry.info     = items[6]
+                forkstatEntry.duration = items[7]
+                forkstatEntry.command  = ' '.join(items[8:])
+                process  = False
+            case 'fork':
+                forkstatEntry.info     = items[6]
+                forkstatEntry.duration = None
+                forkstatEntry.command  = ' '.join(items[7:])
+                process  = (forkstatEntry.info == 'child')
+        if (process):
+            process_forkstat_entry(forkstatEntry)
     lock.release()
 
+def process_forkstat_entry(forkstatEntry):
+    process_process_entry(
+        ProcessEntry(forkstatEntry.pid, forkstatEntry.command)
+    )
+
+def process_process_entry(processEntry):
+    print(processEntry)
 
 
 thread = threading.Thread(
@@ -40,12 +124,11 @@ thread = threading.Thread(
 thread.start()
 
 forkstat = subprocess.Popen(
-    ['forkstat', '-l'],
-    stdout = subprocess.PIPE,
-    stderr = subprocess.STDOUT
+    ['forkstat', '-l', '-x', '-e', 'clone,exec,fork'],
+    stdout = subprocess.PIPE
 )
-forkstat.stdout.readline()
-for line in forkstat.stdout:
-    process_line(line)
-print('forkstat killed!')
+while (True):
+    line = forkstat.stdout.readline().decode('UTF-8').rstrip()
+    process_forkstat_line(line)
+
 sys.exit(1)
