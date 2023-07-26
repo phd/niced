@@ -1,0 +1,51 @@
+#!/usr/bin/python3
+
+import signal
+import subprocess
+import sys
+import threading
+import time
+
+
+
+def sig_exit(sig, frame):
+    print("Exiting...")
+    sys.exit(0)
+
+signal.signal(signal.SIGINT,  sig_exit)
+signal.signal(signal.SIGTERM, sig_exit)
+
+
+
+lock = threading.Lock()
+
+def scan_whole_tree():
+    while (True):
+        lock.acquire()
+        print('scan_whole_tree()')
+        lock.release()
+        time.sleep(2)
+
+def process_line(line):
+    lock.acquire()
+    print('process_line(): ', line)
+    lock.release()
+
+
+
+thread = threading.Thread(
+    target = scan_whole_tree,
+    daemon = True
+)
+thread.start()
+
+forkstat = subprocess.Popen(
+    ['forkstat', '-l'],
+    stdout = subprocess.PIPE,
+    stderr = subprocess.STDOUT
+)
+forkstat.stdout.readline()
+for line in forkstat.stdout:
+    process_line(line)
+print('forkstat killed!')
+sys.exit(1)
