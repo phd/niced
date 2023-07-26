@@ -1,9 +1,10 @@
 #!/usr/bin/python3
 
 
-SCAN_WHOLE_TREE_DELAY = 2
+SCAN_WHOLE_TREE_DELAY = 5
 
 
+import psutil
 import re
 import signal
 import subprocess
@@ -26,7 +27,12 @@ lock = threading.Lock()
 def scan_whole_tree():
     while (True):
         lock.acquire()
-        print('scan_whole_tree()')
+        for process in psutil.process_iter():
+            processEntry = ProcessEntry()
+            processEntry.pid     = process.pid
+            processEntry.command = ' '.join(process.cmdline())
+            if (processEntry.pid and processEntry.command):
+                process_process_entry(processEntry)
         lock.release()
         time.sleep(SCAN_WHOLE_TREE_DELAY)
 
