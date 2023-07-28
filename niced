@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 
-SCAN_WHOLE_TREE_DELAY = '5'
-CONFIG_PATH = './nicedrc'
+DEFAULT_FULL_SCAN_INTERVAL = '5'
+CONFIG_PATH                = './nicedrc'
 
 import psutil
 import re
@@ -11,16 +11,6 @@ import sys
 import threading
 import time
 
-def sig_exit(sig, frame):
-    print("Exiting...")
-    sys.exit(0)
-
-signal.signal(signal.SIGINT,  sig_exit)
-signal.signal(signal.SIGTERM, sig_exit)
-signal.signal(signal.SIGCONT, sig_exit)
-
-lock = threading.Lock()
-
 class ConfigRule():
     regex         = None
     compiled      = None
@@ -29,11 +19,20 @@ class ConfigRule():
     io_besteffort = None
     io_idle       = None
     oom           = None
+    @staticmethod
+    def from_Config_line(line):
+        rule = ConfigRule()
+        line = re.sub('\s+', ' ', line)
+        items = line.split(' ')
+        rule.regex = items[1]
+        if (not rule.regex.startswith('(')):
+            rule.regex = '(^|[^\s]*/)(' + rule.regex + ')(\s|$)'
+        rule.compiled = re.compile(rule.regex)
+        return rule
 
 class Config(object):
-    rules                 = []
-    scan_whole_tree_delay = SCAN_WHOLE_TREE_DELAY
-    def read(self):
+    @staticmethod
+    def load():
         with open(CONFIG_PATH, 'r') as config_file:
             for line in config_file:
                 line = line.strip()
@@ -42,30 +41,14 @@ class Config(object):
                 if (line[0] == '@'):
                     line = line[1:]
                     items = re.split('\s*=\s*', line)
-                    setattr(config, items[0], items[1])
-                line = re.sub('\s+', ' ', line)
-                items = line.split(' ')
-                rule = ConfigRule()
-                rule.regex = items[1]
-                if (not rule.regex.startswith('(')):
-                    rule.regex = '(^|[^\s]*/)(' + rule.regex + ')(\s|$)'
-                rule.compiled = re.compile(rule.regex)
-                config.rules.append(rule)
-config = Config()
-
-class ProcessEntry(object):
-    pid     = None
-    command = None
-    def __init__(self, pid = None, command = None):
-        self.pid     = pid
-        self.command = command
-    def __str__(self):
-        return "ProcessEntry(\n" + \
-            "         pid={}\n".format(self.pid    ) + \
-            "     command={}\n".format(self.command) + \
-            ")"
+                    setattr(Config, items[0], items[1])
+                rule = ConfigRule.from_Config_line(line)
+                Config.rules.append(rule)
+Config.rules              = []
+Config.full_scan_interval = DEFAULT_FULL_SCAN_INTERVAL
 
 class ForkstatEntry(object):
+    valid    = False
     time     = None
     event    = None
     pid      = None
@@ -87,26 +70,14 @@ class ForkstatEntry(object):
             "    duration={}\n".format(self.duration) + \
             "     command={}\n".format(self.command ) + \
             ")"
-
-def scan_whole_tree():
-    while (True):
-        lock.acquire()
-        for process in psutil.process_iter():
-            processEntry = ProcessEntry()
-            processEntry.pid     = process.pid
-            processEntry.command = ' '.join(process.cmdline())
-            if (processEntry.pid and processEntry.command):
-                process_process_entry(processEntry)
-        lock.release()
-        time.sleep(int(config.scan_whole_tree_delay))
-
-def process_forkstat_line(line):
-    lock.acquire()
-    line = re.sub('\s+', ' ', line)
-    items = line.split(' ')
-    if (re.match('[0-9]+:[0-9]+:[0-9]+', items[0])):
-        process = False;
+    @staticmethod
+    def from_Forkstat_line(line):
+        line = re.sub('\s+', ' ', line)
+        items = line.split(' ')
         forkstatEntry = ForkstatEntry()
+        if (not re.match('[0-9]+:[0-9]+:[0-9]+', items[0])):
+            return forkstatEntry
+        forkstatEntry.valid = False
         forkstatEntry.time  = items[0]
         forkstatEntry.event = items[1]
         forkstatEntry.pid   = items[2]
@@ -118,55 +89,112 @@ def process_forkstat_line(line):
                 forkstatEntry.info     = items[6]
                 forkstatEntry.duration = None
                 forkstatEntry.command  = ' '.join(items[7:])
-                process  = (forkstatEntry.info == 'thread')
+                forkstatEntry.valid  = (forkstatEntry.info == 'thread')
             case 'comm':
                 forkstatEntry.info     = None
                 forkstatEntry.duration = None
                 forkstatEntry.command  = ' '.join(items[6:])
-                process  = False
+                forkstatEntry.valid  = False
             case 'exec':
                 forkstatEntry.info     = None
                 forkstatEntry.duration = None
                 forkstatEntry.command  = ' '.join(items[6:])
-                process  = True
+                forkstatEntry.valid  = True
             case 'exit':
                 forkstatEntry.info     = items[6]
                 forkstatEntry.duration = items[7]
                 forkstatEntry.command  = ' '.join(items[8:])
-                process  = False
+                forkstatEntry.valid  = False
             case 'fork':
                 forkstatEntry.info     = items[6]
                 forkstatEntry.duration = None
                 forkstatEntry.command  = ' '.join(items[7:])
-                process  = (forkstatEntry.info == 'child')
-        if (process):
-            process_forkstat_entry(forkstatEntry)
-    lock.release()
+                forkstatEntry.valid  = (forkstatEntry.info == 'child')
+        return forkstatEntry
 
-def process_forkstat_entry(forkstatEntry):
-    process_process_entry(
-        ProcessEntry(forkstatEntry.pid, forkstatEntry.command)
-    )
+class Forkstat(object):
+    @staticmethod
+    def start():
+        Forkstat._process = subprocess.Popen(
+            ['forkstat', '-l', '-x', '-e', 'clone,exec,fork'],
+            stdout = subprocess.PIPE
+        )
+    @staticmethod
+    def next_entry():
+        if (Forkstat._process == None):
+            return None
+        if (Forkstat._process.poll() != None):
+            return None
+        line = Forkstat._process.stdout.readline().decode('UTF-8').rstrip()
+        return ForkstatEntry.from_Forkstat_line(line)
+Forkstat._process = None
 
-def process_process_entry(processEntry):
-    for rule in config.rules:
-        if (re.match(rule.compiled, processEntry.command)):
-            print("MATCH:", processEntry)
+class ProcessEntry(object):
+    pid     = None
+    command = None
+    def __init__(self, pid = None, command = None):
+        self.pid     = pid
+        self.command = command
+    def __str__(self):
+        return "ProcessEntry(\n" + \
+            "         pid={}\n".format(self.pid    ) + \
+            "     command={}\n".format(self.command) + \
+            ")"
+    @staticmethod
+    def from_ForkstatEntry(forkstat_entry):
+        return ProcessEntry(forkstat_entry.pid, forkstat_entry.command)
+
+class Processor(object):
+    @staticmethod
+    def run():
+        Forkstat.start()
+        while True:
+            forkstat_entry = Forkstat.next_entry()
+            if (forkstat_entry == None):
+                break
+            if (not forkstat_entry.valid):
+                continue
+            process_entry = ProcessEntry.from_ForkstatEntry(forkstat_entry)
+            Processor.handle_ProcessEntry(process_entry)
+    @staticmethod
+    def handle_ProcessEntry(process_entry):
+        for rule in Config.rules:
+            if (re.match(rule.compiled, process_entry.command)):
+                Processor._lock.acquire()
+                print("MATCH:", process_entry)
+                Processor._lock.release()
+Processor._lock = threading.Lock()
+
+class FullScanThread(object):
+    @staticmethod
+    def _scan():
+        while (True):
+            for process in psutil.process_iter():
+                processEntry = ProcessEntry()
+                processEntry.pid     = process.pid
+                processEntry.command = ' '.join(process.cmdline())
+                if (processEntry.pid and processEntry.command):
+                    Processor.handle_ProcessEntry(processEntry)
+            time.sleep(int(Config.full_scan_interval))
+    @staticmethod
+    def start():
+        thread = threading.Thread(
+            target = FullScanThread._scan,
+            daemon = True
+        )
+        thread.start()
+
+def sig_exit(sig, frame):
+    print("Exiting...")
+    sys.exit(0)
 
 def main():
-    config.read()
-    thread = threading.Thread(
-        target = scan_whole_tree,
-        daemon = True
-    )
-    thread.start()
-    forkstat = subprocess.Popen(
-        ['forkstat', '-l', '-x', '-e', 'clone,exec,fork'],
-        stdout = subprocess.PIPE
-    )
-    while (forkstat.poll() == None):
-        line = forkstat.stdout.readline().decode('UTF-8').rstrip()
-        process_forkstat_line(line)
+    signal.signal(signal.SIGINT,  sig_exit)
+    signal.signal(signal.SIGTERM, sig_exit)
+    signal.signal(signal.SIGCONT, sig_exit)
+    Config.load()
+    FullScanThread.start()
+    Processor.run()
     sys.exit(1)
 
 if (__name__ == '__main__'):

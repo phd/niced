@@ -1,2 +1,2 @@
-@scan_whole_tree_delay = 10
+@full_scan_interval = 10
 n19 (^|[^\s]*/)(gp)(\s|$)
