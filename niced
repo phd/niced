@@ -1,9 +1,8 @@
 #!/usr/bin/python3
 
+''' niced - a daemon renicing new and existing processes '''
+
 # pylint: disable=superfluous-parens
-# pylint: disable=missing-module-docstring
-# pylint: disable=missing-class-docstring
-# pylint: disable=missing-function-docstring
 # pylint: disable=too-few-public-methods
 # pylint: disable=too-many-instance-attributes
 
@@ -20,6 +19,7 @@ DEFAULT_FULL_SCAN_INTERVAL = '5'
 CONFIG_PATH                = './nicedrc'
 
 class ConfigRule():
+    ''' parsed configuration line '''
     regex         = None
     compiled      = None
     nice          = None
@@ -29,6 +29,7 @@ class ConfigRule():
     oom           = None
     @staticmethod
     def from_config_line(line):
+        ''' create ConfigRule by parsing given configuration line '''
         rule = ConfigRule()
         line = re.sub('\\s+', ' ', line)
         items = line.split(' ')
@@ -39,10 +40,12 @@ class ConfigRule():
         return rule
 
 class Config():
+    ''' config singleton '''
     rules              = []
     full_scan_interval = DEFAULT_FULL_SCAN_INTERVAL
     @staticmethod
     def load():
+        ''' method loading configuration from config file '''
         with open(CONFIG_PATH, mode = 'r', encoding = 'utf-8') as config_file:
             for line in config_file:
                 line = line.strip()
@@ -56,6 +59,7 @@ class Config():
                 Config.rules.append(rule)
 
 class ForkstatEntry():
+    ''' parsed process line from forkstat '''
     valid    = False
     time     = None
     event    = None
@@ -80,6 +84,7 @@ class ForkstatEntry():
             ')'
     @staticmethod
     def from_forkstat_line(line):
+        ''' create ForkstatEntry by parsing given process line from forkstat '''
         line = re.sub('\\s+', ' ', line)
         items = line.split(' ')
         forkstat_entry = ForkstatEntry()
@@ -121,9 +126,11 @@ class ForkstatEntry():
         return forkstat_entry
 
 class Forkstat():
+    ''' forkstat subprocess '''
     _process = None
     @staticmethod
     def start():
+        ''' start forkstat subprocess in the background '''
         # pylint: disable=consider-using-with
         Forkstat._process = subprocess.Popen(
             ['forkstat', '-l', '-x', '-e', 'clone,exec,fork'],
@@ -131,6 +138,7 @@ class Forkstat():
         )
     @staticmethod
     def next_entry():
+        ''' wait for the next forkstat process line and parse it '''
         if (Forkstat._process is None):
             return None
         if (Forkstat._process.poll() is not None):
@@ -139,6 +147,7 @@ class Forkstat():
         return ForkstatEntry.from_forkstat_line(line)
 
 class ProcessEntry():
+    ''' contains information about a process '''
     pid     = None
     command = None
     def __init__(self, pid = None, command = None):
@@ -151,12 +160,15 @@ class ProcessEntry():
             ')'
     @staticmethod
     def from_forkstat_entry(forkstat_entry):
+        ''' create ProcessEntry from ForkstatEntry '''
         return ProcessEntry(forkstat_entry.pid, forkstat_entry.command)
 
 class Processor():
+    ''' main loop matching and renicing processes '''
     _lock = threading.Lock()
     @staticmethod
     def run():
+        ''' run main loop, it exits if forkstat dies '''
         Forkstat.start()
         while True:
             forkstat_entry = Forkstat.next_entry()
@@ -168,12 +180,14 @@ class Processor():
             Processor.handle_process_entry(process_entry)
     @staticmethod
     def handle_process_entry(process_entry):
+        ''' match and renice given ProcessEntry '''
         for rule in Config.rules:
             if (re.match(rule.compiled, process_entry.command)):
                 with Processor._lock:
                     print("MATCH:", process_entry)
 
 class FullScanThread():
+    ''' thread periodically scanning full process tree '''
     @staticmethod
     def _scan():
         while (True):
@@ -186,6 +200,7 @@ class FullScanThread():
             time.sleep(int(Config.full_scan_interval))
     @staticmethod
     def start():
+        ''' start the full-scan thread in the background '''
         thread = threading.Thread(
             target = FullScanThread._scan,
             daemon = True
@@ -193,17 +208,19 @@ class FullScanThread():
         thread.start()
 
 def sig_exit(sig, frame):
+    ''' exit on received signal '''
     del sig, frame
     print("Exiting...")
     sys.exit(0)
 
 def main():
+    ''' main entry point '''
     signal.signal(signal.SIGINT,  sig_exit)
     signal.signal(signal.SIGTERM, sig_exit)
     signal.signal(signal.SIGCONT, sig_exit)
     Config.load()
     FullScanThread.start()
-    Processor.run()
+    Processor.run() # main loop
     sys.exit(1)
 
 if (__name__ == '__main__'):
