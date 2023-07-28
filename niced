@@ -31,7 +31,7 @@ class ConfigRule():
         ''' create ConfigRule by parsing given configuration line '''
         rule = ConfigRule()
         line = re.sub('\\s+', ' ', line)
-        items = line.split(' ')
+        items = line.split(' ', maxsplit = 1)
         rule.regex = items[1]
         if (not rule.regex.startswith('(')):
             rule.regex = '(^|[^\\s]*/)(' + rule.regex + ')(\\s|$)'
@@ -52,8 +52,8 @@ class Config():
                 if (line[0] == '#'):
                     continue
                 if (line[0] == '@'):
-                    line = line[1:]
-                    items = re.split('\\s*=\\s*', line)
+                    line = line[1:].strip()
+                    items = re.split('\\s*=\\s*', line, maxsplit = 1)
                     setattr(Config, items[0], items[1])
                 rule = ConfigRule.from_config_line(line)
                 Config.rules.append(rule)
