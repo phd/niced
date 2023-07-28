@@ -1,5 +1,11 @@
-all:
-	true
+all: check
+
+check:
+	python -m py_compile niced
+	rm -rf __pycache__
+
+pylint:
+	pylint niced
 
 install:
 	mkdir -p /usr/bin
