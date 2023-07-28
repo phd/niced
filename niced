@@ -2,10 +2,6 @@
 
 ''' niced - a daemon renicing new and existing processes '''
 
-# pylint: disable=superfluous-parens
-# pylint: disable=too-few-public-methods
-# pylint: disable=too-many-instance-attributes
-
 import re
 import signal
 import subprocess
@@ -18,8 +14,11 @@ import psutil
 DEFAULT_FULL_SCAN_INTERVAL = '5'
 CONFIG_PATH                = './nicedrc'
 
+# pylint: disable=superfluous-parens
+
 class ConfigRule():
     ''' parsed configuration line '''
+    # pylint: disable=too-few-public-methods
     regex         = None
     compiled      = None
     nice          = None
@@ -41,6 +40,7 @@ class ConfigRule():
 
 class Config():
     ''' config singleton '''
+    # pylint: disable=too-few-public-methods
     rules              = []
     full_scan_interval = DEFAULT_FULL_SCAN_INTERVAL
     @staticmethod
@@ -60,6 +60,7 @@ class Config():
 
 class ForkstatEntry():
     ''' parsed process line from forkstat '''
+    # pylint: disable=too-many-instance-attributes
     valid    = False
     time     = None
     event    = None
@@ -188,6 +189,7 @@ class Processor():
 
 class FullScanThread():
     ''' thread periodically scanning full process tree '''
+    # pylint: disable=too-few-public-methods
     @staticmethod
     def _scan():
         while (True):
