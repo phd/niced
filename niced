@@ -1,8 +1,7 @@
 #!/usr/bin/python3
 
-
-SCAN_WHOLE_TREE_DELAY = 5
-
+SCAN_WHOLE_TREE_DELAY = '5'
+CONFIG_PATH = './nicedrc'
 
 import psutil
 import re
@@ -12,7 +11,6 @@ import sys
 import threading
 import time
 
-
 def sig_exit(sig, frame):
     print("Exiting...")
     sys.exit(0)
@@ -21,44 +19,62 @@ signal.signal(signal.SIGINT,  sig_exit)
 signal.signal(signal.SIGTERM, sig_exit)
 signal.signal(signal.SIGCONT, sig_exit)
 
-
 lock = threading.Lock()
 
+class ConfigRule():
+    regex         = None
+    compiled      = None
+    nice          = None
+    io_realtime   = None
+    io_besteffort = None
+    io_idle       = None
+    oom           = None
 
-def scan_whole_tree():
-    while (True):
-        lock.acquire()
-        for process in psutil.process_iter():
-            processEntry = ProcessEntry()
-            processEntry.pid     = process.pid
-            processEntry.command = ' '.join(process.cmdline())
-            if (processEntry.pid and processEntry.command):
-                process_process_entry(processEntry)
-        lock.release()
-        time.sleep(SCAN_WHOLE_TREE_DELAY)
-
+class Config(object):
+    rules                 = []
+    scan_whole_tree_delay = SCAN_WHOLE_TREE_DELAY
+    def read(self):
+        with open(CONFIG_PATH, 'r') as config_file:
+            for line in config_file:
+                line = line.strip()
+                if (line[0] == '#'):
+                    continue
+                if (line[0] == '@'):
+                    line = line[1:]
+                    items = re.split('\s*=\s*', line)
+                    setattr(config, items[0], items[1])
+                line = re.sub('\s+', ' ', line)
+                items = line.split(' ')
+                rule = ConfigRule()
+                rule.regex = items[1]
+                if (not rule.regex.startswith('(')):
+                    rule.regex = '(^|[^\s]*/)(' + rule.regex + ')(\s|$)'
+                rule.compiled = re.compile(rule.regex)
+                config.rules.append(rule)
+config = Config()
 
 class ProcessEntry(object):
+    pid     = None
+    command = None
     def __init__(self, pid = None, command = None):
         self.pid     = pid
         self.command = command
     def __str__(self):
         return "ProcessEntry(\n" + \
-            "         pid={}\n".format(self.pid     ) + \
-            "     command={}\n".format(self.command ) + \
+            "         pid={}\n".format(self.pid    ) + \
+            "     command={}\n".format(self.command) + \
             ")"
 
 class ForkstatEntry(object):
-    def __init__(self):
-        self.time     = None
-        self.event    = None
-        self.pid      = None
-        self.uid      = None
-        self.euid     = None
-        self.tty      = None
-        self.info     = None
-        self.duration = None
-        self.command  = None
+    time     = None
+    event    = None
+    pid      = None
+    uid      = None
+    euid     = None
+    tty      = None
+    info     = None
+    duration = None
+    command  = None
     def __str__(self):
         return "ForkstatEntry(\n" + \
             "        time={}\n".format(self.time    ) + \
@@ -72,11 +88,23 @@ class ForkstatEntry(object):
             "     command={}\n".format(self.command ) + \
             ")"
 
+def scan_whole_tree():
+    while (True):
+        lock.acquire()
+        for process in psutil.process_iter():
+            processEntry = ProcessEntry()
+            processEntry.pid     = process.pid
+            processEntry.command = ' '.join(process.cmdline())
+            if (processEntry.pid and processEntry.command):
+                process_process_entry(processEntry)
+        lock.release()
+        time.sleep(int(config.scan_whole_tree_delay))
+
 def process_forkstat_line(line):
     lock.acquire()
-    line = re.sub(' +', ' ', line)
+    line = re.sub('\s+', ' ', line)
     items = line.split(' ')
-    if (items[0] != 'Time'):
+    if (re.match('[0-9]+:[0-9]+:[0-9]+', items[0])):
         process = False;
         forkstatEntry = ForkstatEntry()
         forkstatEntry.time  = items[0]
@@ -121,21 +149,25 @@ def process_forkstat_entry(forkstatEntry):
     )
 
 def process_process_entry(processEntry):
-    print(processEntry)
+    for rule in config.rules:
+        if (re.match(rule.compiled, processEntry.command)):
+            print("MATCH:", processEntry)
 
+def main():
+    config.read()
+    thread = threading.Thread(
+        target = scan_whole_tree,
+        daemon = True
+    )
+    thread.start()
+    forkstat = subprocess.Popen(
+        ['forkstat', '-l', '-x', '-e', 'clone,exec,fork'],
+        stdout = subprocess.PIPE
+    )
+    while (forkstat.poll() == None):
+        line = forkstat.stdout.readline().decode('UTF-8').rstrip()
+        process_forkstat_line(line)
+    sys.exit(1)
 
-thread = threading.Thread(
-    target = scan_whole_tree,
-    daemon = True
-)
-thread.start()
-
-forkstat = subprocess.Popen(
-    ['forkstat', '-l', '-x', '-e', 'clone,exec,fork'],
-    stdout = subprocess.PIPE
-)
-while (True):
-    line = forkstat.stdout.readline().decode('UTF-8').rstrip()
-    process_forkstat_line(line)
-
-sys.exit(1)
+if (__name__ == '__main__'):
+    main()
