@@ -19,6 +19,7 @@ def sig_exit(sig, frame):
 
 signal.signal(signal.SIGINT,  sig_exit)
 signal.signal(signal.SIGTERM, sig_exit)
+signal.signal(signal.SIGCONT, sig_exit)
 
 
 lock = threading.Lock()

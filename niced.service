@@ -1,0 +1,11 @@
+[Unit]
+Description=niced
+
+[Service]
+Type=exec
+Restart=always
+User=root
+ExecStart=/usr/bin/niced
+
+[Install]
+WantedBy=multi-user.target
