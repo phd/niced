@@ -60,14 +60,10 @@ class Config():
 
 class ForkstatEntry():
     ''' parsed process line from forkstat '''
-    # pylint: disable=too-many-instance-attributes
     valid    = False
     time     = None
     event    = None
     pid      = None
-    uid      = None
-    euid     = None
-    tty      = None
     info     = None
     duration = None
     command  = None
@@ -76,9 +72,6 @@ class ForkstatEntry():
             f'        time={self.time    }\n' + \
             f'       event={self.event   }\n' + \
             f'         pid={self.pid     }\n' + \
-            f'         uid={self.uid     }\n' + \
-            f'        euid={self.euid    }\n' + \
-            f'         tty={self.tty     }\n' + \
             f'        info={self.info    }\n' + \
             f'    duration={self.duration}\n' + \
             f'     command={self.command }\n' + \
@@ -95,34 +88,31 @@ class ForkstatEntry():
         forkstat_entry.time  = items[0]
         forkstat_entry.event = items[1]
         forkstat_entry.pid   = items[2]
-        forkstat_entry.uid   = items[3]
-        forkstat_entry.euid  = items[4]
-        forkstat_entry.tty   = items[5]
         match (forkstat_entry.event):
             case 'clone':
-                forkstat_entry.info     = items[6]
+                forkstat_entry.info     = items[3]
                 forkstat_entry.duration = None
-                forkstat_entry.command  = ' '.join(items[7:])
+                forkstat_entry.command  = ' '.join(items[4:])
                 forkstat_entry.valid  = (forkstat_entry.info == 'thread')
             case 'comm':
                 forkstat_entry.info     = None
                 forkstat_entry.duration = None
-                forkstat_entry.command  = ' '.join(items[6:])
+                forkstat_entry.command  = ' '.join(items[3:])
                 forkstat_entry.valid  = False
             case 'exec':
                 forkstat_entry.info     = None
                 forkstat_entry.duration = None
-                forkstat_entry.command  = ' '.join(items[6:])
+                forkstat_entry.command  = ' '.join(items[3:])
                 forkstat_entry.valid  = True
             case 'exit':
-                forkstat_entry.info     = items[6]
-                forkstat_entry.duration = items[7]
-                forkstat_entry.command  = ' '.join(items[8:])
+                forkstat_entry.info     = items[3]
+                forkstat_entry.duration = items[4]
+                forkstat_entry.command  = ' '.join(items[5:])
                 forkstat_entry.valid  = False
             case 'fork':
-                forkstat_entry.info     = items[6]
+                forkstat_entry.info     = items[3]
                 forkstat_entry.duration = None
-                forkstat_entry.command  = ' '.join(items[7:])
+                forkstat_entry.command  = ' '.join(items[4:])
                 forkstat_entry.valid  = (forkstat_entry.info == 'child')
         return forkstat_entry
 
@@ -134,7 +124,7 @@ class Forkstat():
         ''' start forkstat subprocess in the background '''
         # pylint: disable=consider-using-with
         Forkstat._process = subprocess.Popen(
-            ['forkstat', '-l', '-x', '-e', 'clone,exec,fork'],
+            ['forkstat', '-l', '-e', 'clone,exec,fork'],
             stdout = subprocess.PIPE
         )
     @staticmethod
