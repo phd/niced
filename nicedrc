@@ -1,2 +1,2 @@
 @full_scan_interval = 10
-n19 (^|[^\s]*/)(gp)(\s|$)
+n19 gp
