@@ -16,7 +16,7 @@ import time
 
 import psutil
 
-CONFIG_PATH                = './nicedrc'
+CONFIG_PATH                = '/etc/nicedrc'
 
 DEFAULT_FULL_SCAN_INTERVAL = 10
 
