@@ -1,2 +1,19 @@
 @full_scan_interval = 10
-n19 gp
+n-15 Xorg
+n-15 kwin_x11
+n-15 pulseaudio
+n-10 barrier
+n-10 mpv
+n-5  plasmashell
+n0   krunner
+n0   konsole
+n0   bash
+in10 ark
+in10 tar
+in10 unxz
+in10 dpkg
+in15 gcc
+in15 g++
+in15 cc1
+in15 cc1plus
+in15 dkms
