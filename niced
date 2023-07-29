@@ -234,19 +234,19 @@ class Processor():
         for rule in Config.rules:
             if (re.match(rule.regex, process_entry.command)):
                 with Processor._lock:
-                    print(process_entry)
+                    # print(process_entry)
                     if (rule.nice is not None):
-                        print(f'> nice({rule.nice})')
+                        # print(f'> nice({rule.nice})')
                         Processor.nice(
                             process_entry.pid, rule.nice
                         )
                     if (rule.io_class is not None):
-                        print(f'> ionice({rule.io_class}, {rule.io_nice})')
+                        # print(f'> ionice({rule.io_class}, {rule.io_nice})')
                         Processor.ionice(
                             process_entry.pid, rule.io_class, rule.io_nice
                         )
                     if (rule.oom is not None):
-                        print(f'> oom({rule.oom})')
+                        # print(f'> oom({rule.oom})')
                         Processor.oom(
                             process_entry.pid, rule.oom
                         )
