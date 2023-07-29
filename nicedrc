@@ -4,6 +4,7 @@ n-15 kwin_x11
 n-15 pulseaudio
 n-10 barrier
 n-10 mpv
+n0R1 plasmashell
 n-5  plasmashell
 n0   krunner
 n0   konsole
