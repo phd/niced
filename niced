@@ -11,31 +11,76 @@ import time
 
 import psutil
 
-DEFAULT_FULL_SCAN_INTERVAL = '5'
 CONFIG_PATH                = './nicedrc'
+DEFAULT_FULL_SCAN_INTERVAL = '5'
+
+NICE_DEFAULT_PRIORITY    = 10 # see nice(1)
+IONICE_CLASS_NONE        = 0  # see ionice(1)
+IONICE_CLASS_REALTIME    = 1
+IONICE_CLASS_BEST_EFFORT = 2
+IONICE_CLASS_IDLE        = 3
 
 # pylint: disable=superfluous-parens
+
+def int_or_none(string):
+    try:
+        return int(string)
+    except:
+        return None
 
 class ConfigRule():
     ''' parsed configuration line '''
     # pylint: disable=too-few-public-methods
+    match         = None
     regex         = None
-    compiled      = None
+    recursive     = None
     nice          = None
-    io_realtime   = None
-    io_besteffort = None
-    io_idle       = None
+    io_class      = None
+    io_nice       = None
     oom           = None
+    def __str__(self):
+        return 'ConfigRule(\n' + \
+            f'        match={self.match        }\n' + \
+            f'        regex={self.regex.pattern}\n' + \
+            f'    recursive={self.recursive    }\n' + \
+            f'         nice={self.nice         }\n' + \
+            f'     io_class={self.io_class     }\n' + \
+            f'      io_nice={self.io_nice      }\n' + \
+            f'          oom={self.oom          }\n' + \
+            ')'
     @staticmethod
     def from_config_line(line):
         ''' create ConfigRule by parsing given configuration line '''
         rule = ConfigRule()
         line = re.sub('\\s+', ' ', line)
         items = line.split(' ', maxsplit = 1)
-        rule.regex = items[1]
-        if (not rule.regex.startswith('(')):
-            rule.regex = '(^|[^\\s]*/)(' + rule.regex + ')(\\s|$)'
-        rule.compiled = re.compile(rule.regex)
+        actions_str = items[0]
+        actions_str = re.sub('([a-zA-Z])', ',\\1', actions_str)
+        actions = actions_str.split(',')
+        actions = list(filter(None, actions))
+        actions = [[action[0], action[1:]] for action in actions]
+        for action in actions:
+            match (action[0]):
+                case 'R':
+                    rule.recursive = int_or_none(action[1]) or 0
+                case 'n' | '':
+                    rule.nice = int_or_none(action[1]) or NICE_DEFAULT_PRIORITY
+                case 'r':
+                    rule.io_class = IONICE_CLASS_REALTIME
+                    rule.io_nice = int_or_none(action[1])
+                case 'b':
+                    rule.io_class = IONICE_CLASS_BEST_EFFORT
+                    rule.io_nice = int_or_none(action[1])
+                case 'i':
+                    rule.io_class = IONICE_CLASS_IDLE
+                    rule.io_nice = int_or_none(action[1])
+                case 'o':
+                    rule.oom = int_or_none(action[1])
+        rule.match = items[1]
+        match = rule.match
+        if (not match.startswith('(')):
+            match = '(^|[^\\s]*/)(' + match + ')(\\s|$)'
+        rule.regex = re.compile(match)
         return rule
 
 class Config():
@@ -55,6 +100,7 @@ class Config():
                     line = line[1:].strip()
                     items = re.split('\\s*=\\s*', line, maxsplit = 1)
                     setattr(Config, items[0], items[1])
+                    continue
                 rule = ConfigRule.from_config_line(line)
                 Config.rules.append(rule)
 
@@ -173,7 +219,7 @@ class Processor():
     def handle_process_entry(process_entry):
         ''' match and renice given ProcessEntry '''
         for rule in Config.rules:
-            if (re.match(rule.compiled, process_entry.command)):
+            if (re.match(rule.regex, process_entry.command)):
                 with Processor._lock:
                     print("MATCH:", process_entry)
 
