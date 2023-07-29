@@ -2,6 +2,11 @@
 
 ''' niced - a daemon renicing new and existing processes '''
 
+# pylint: disable=superfluous-parens
+# pylint: disable=too-few-public-methods
+# pylint: disable=bare-except
+>>>>>>> 025c2ac (working renicing, fixes)
+
 import re
 import signal
 import subprocess
@@ -12,32 +17,35 @@ import time
 import psutil
 
 CONFIG_PATH                = './nicedrc'
-DEFAULT_FULL_SCAN_INTERVAL = '5'
 
-NICE_DEFAULT_PRIORITY    = 10 # see nice(1)
-IONICE_CLASS_NONE        = 0  # see ionice(1)
-IONICE_CLASS_REALTIME    = 1
-IONICE_CLASS_BEST_EFFORT = 2
-IONICE_CLASS_IDLE        = 3
+DEFAULT_FULL_SCAN_INTERVAL = 10
 
-# pylint: disable=superfluous-parens
+NICE_DEFAULT_PRIORITY      = 10  # see nice(1)
 
-def int_or_none(string):
-    try:
-        return int(string)
-    except:
-        return None
+IONICE_CLASS_NONE          = 0   # see ionice(1)
+IONICE_CLASS_REALTIME      = 1
+IONICE_CLASS_BEST_EFFORT   = 2
+IONICE_CLASS_IDLE          = 3
+
+class ConfigRuleAction:
+    ''' actions available for configuration rules '''
+    RECURSIVE      = 'R'  # None =  0,     1...
+    NICE           = 'n'  # None = 10,   -20...19
+    IO_REALTIME    = 'r'  # None =  4,     0...7
+    IO_BEST_EFFORT = 'b'  # None =  4,     0...7
+    IO_IDLE        = 'i'  # None =  4,     0...7
+    OOM_ADJ        = 'o'  # None =  0,   -17...15
+    OOM_SCORE_ADJ  = 'O'  # None =  0, -1000...1000
 
 class ConfigRule():
     ''' parsed configuration line '''
-    # pylint: disable=too-few-public-methods
-    match         = None
-    regex         = None
-    recursive     = None
-    nice          = None
-    io_class      = None
-    io_nice       = None
-    oom           = None
+    match     = None
+    regex     = None
+    recursive = None
+    nice      = None
+    io_class  = None
+    io_nice   = None
+    oom       = None
     def __str__(self):
         return 'ConfigRule(\n' + \
             f'        match={self.match        }\n' + \
@@ -61,21 +69,27 @@ class ConfigRule():
         actions = [[action[0], action[1:]] for action in actions]
         for action in actions:
             match (action[0]):
-                case 'R':
+                case ConfigRuleAction.RECURSIVE:
                     rule.recursive = int_or_none(action[1]) or 0
-                case 'n' | '':
-                    rule.nice = int_or_none(action[1]) or NICE_DEFAULT_PRIORITY
-                case 'r':
+                case ConfigRuleAction.NICE | '':
+                    rule.nice = int_or_none(action[1])
+                    if (rule.nice is None):
+                        rule.nice = NICE_DEFAULT_PRIORITY
+                case ConfigRuleAction.IO_REALTIME:
                     rule.io_class = IONICE_CLASS_REALTIME
                     rule.io_nice = int_or_none(action[1])
-                case 'b':
+                case ConfigRuleAction.IO_BEST_EFFORT:
                     rule.io_class = IONICE_CLASS_BEST_EFFORT
                     rule.io_nice = int_or_none(action[1])
-                case 'i':
+                case ConfigRuleAction.IO_IDLE:
                     rule.io_class = IONICE_CLASS_IDLE
                     rule.io_nice = int_or_none(action[1])
-                case 'o':
+                case ConfigRuleAction.OOM_ADJ:
                     rule.oom = int_or_none(action[1])
+                case ConfigRuleAction.OOM_SCORE_ADJ:
+                    rule.oom = int_or_none(action[1])
+                    if rule.oom is not None:
+                        rule.oom = float(rule.oom)
         rule.match = items[1]
         match = rule.match
         if (not match.startswith('(')):
@@ -85,13 +99,12 @@ class ConfigRule():
 
 class Config():
     ''' config singleton '''
-    # pylint: disable=too-few-public-methods
     rules              = []
     full_scan_interval = DEFAULT_FULL_SCAN_INTERVAL
     @staticmethod
     def load():
         ''' method loading configuration from config file '''
-        with open(CONFIG_PATH, mode = 'r', encoding = 'utf-8') as config_file:
+        with open(CONFIG_PATH, mode = 'r', encoding = 'utf8') as config_file:
             for line in config_file:
                 line = line.strip()
                 if (line[0] == '#'):
@@ -124,7 +137,7 @@ class ForkstatEntry():
             ')'
     @staticmethod
     def from_forkstat_line(line):
-        ''' create ForkstatEntry by parsing given process line from forkstat '''
+        ''' create ForkstatEntry by parsing a process line from forkstat '''
         line = re.sub('\\s+', ' ', line)
         items = line.split(' ')
         forkstat_entry = ForkstatEntry()
@@ -133,33 +146,33 @@ class ForkstatEntry():
         forkstat_entry.valid = False
         forkstat_entry.time  = items[0]
         forkstat_entry.event = items[1]
-        forkstat_entry.pid   = items[2]
+        forkstat_entry.pid   = int_or_none(items[2])
         match (forkstat_entry.event):
             case 'clone':
                 forkstat_entry.info     = items[3]
                 forkstat_entry.duration = None
                 forkstat_entry.command  = ' '.join(items[4:])
-                forkstat_entry.valid  = (forkstat_entry.info == 'thread')
+                forkstat_entry.valid    = (forkstat_entry.info == 'thread')
             case 'comm':
                 forkstat_entry.info     = None
                 forkstat_entry.duration = None
                 forkstat_entry.command  = ' '.join(items[3:])
-                forkstat_entry.valid  = False
+                forkstat_entry.valid    = False
             case 'exec':
                 forkstat_entry.info     = None
                 forkstat_entry.duration = None
                 forkstat_entry.command  = ' '.join(items[3:])
-                forkstat_entry.valid  = True
+                forkstat_entry.valid    = True
             case 'exit':
                 forkstat_entry.info     = items[3]
                 forkstat_entry.duration = items[4]
                 forkstat_entry.command  = ' '.join(items[5:])
-                forkstat_entry.valid  = False
+                forkstat_entry.valid    = False
             case 'fork':
                 forkstat_entry.info     = items[3]
                 forkstat_entry.duration = None
                 forkstat_entry.command  = ' '.join(items[4:])
-                forkstat_entry.valid  = (forkstat_entry.info == 'child')
+                forkstat_entry.valid    = (forkstat_entry.info == 'child')
         return forkstat_entry
 
 class Forkstat():
@@ -221,11 +234,82 @@ class Processor():
         for rule in Config.rules:
             if (re.match(rule.regex, process_entry.command)):
                 with Processor._lock:
-                    print("MATCH:", process_entry)
+                    print(process_entry)
+                    if (rule.nice is not None):
+                        print(f'> nice({rule.nice})')
+                        Processor.nice(
+                            process_entry.pid, rule.nice
+                        )
+                    if (rule.io_class is not None):
+                        print(f'> ionice({rule.io_class}, {rule.io_nice})')
+                        Processor.ionice(
+                            process_entry.pid, rule.io_class, rule.io_nice
+                        )
+                    if (rule.oom is not None):
+                        print(f'> oom({rule.oom})')
+                        Processor.oom(
+                            process_entry.pid, rule.oom
+                        )
+    @staticmethod
+    def nice(pid, priority):
+        ''' renice given process to given priority '''
+        try:
+            process = psutil.Process(pid)
+            process.nice(priority)
+            return True
+        except:
+            return False
+    @staticmethod
+    def ionice(pid, io_class, io_nice):
+        ''' ionice given process to given IO class and optional class data '''
+        try:
+            cmd = ['ionice', '-p', str(pid), '-c', str(io_class)]
+            if (io_nice is not None):
+                cmd.append(['-n', str(io_nice)])
+            subprocess.run(cmd, check = True)
+        except:
+            return False
+        return True
+    @staticmethod
+    def oom(pid, oom):
+        ''' adjust process protection from OOM killer '''
+        try:
+            with open(
+                f'/proc/{pid}/oom_score_adj', 'w', encoding = 'utf-8'
+            ) as file:
+                file.write(Processor.oom_as_oom_score_adj(oom))
+        except:
+            try:
+                with open(
+                    f'/proc/{pid}/oom_adj', 'w', encoding = 'utf-8'
+                ) as file:
+                    file.write(Processor.oom_as_oom_adj(oom))
+            except:
+                return False
+        return True
+    @staticmethod
+    def oom_as_oom_score_adj(oom):
+        ''' return given oom value as one usable for oom_score_adj '''
+        if isinstance(oom, float):
+            return int(oom)
+        return Processor.convert_to_oom_score_adj(oom)
+    @staticmethod
+    def oom_as_oom_adj(oom):
+        ''' return given oom value as one usable for oom_adj '''
+        if isinstance(oom, float):
+            return Processor.convert_to_oom_adj(oom)
+        return oom
+    @staticmethod
+    def convert_to_oom_score_adj(oom_adj):
+        ''' convert value from oom_adj to oom_score_adj range '''
+        return int(convert_range(oom_adj, -17, 15, -1000, 1000))
+    @staticmethod
+    def convert_to_oom_adj(oom_score_adj):
+        ''' convert value from oom_score_adj to oom_adj range '''
+        return int(convert_range(oom_score_adj, -1000, 1000, -17, 15))
 
 class FullScanThread():
     ''' thread periodically scanning full process tree '''
-    # pylint: disable=too-few-public-methods
     @staticmethod
     def _scan():
         while (True):
@@ -245,6 +329,19 @@ class FullScanThread():
         )
         thread.start()
 
+def int_or_none(string):
+    ''' convert string to int or return None in case of error '''
+    try:
+        return int(string)
+    except:
+        return None
+
+def convert_range(value1, min1, max1, min2, max2):
+    ''' convert value from one range to another keeping its ratio '''
+    range1 = max1 - min1
+    range2 = max2 - min2
+    return min2 + ((value1 - min1) * range2 / range1)
+
 def sig_exit(sig, frame):
     ''' exit on received signal '''
     del sig, frame
@@ -258,7 +355,7 @@ def main():
     signal.signal(signal.SIGCONT, sig_exit)
     Config.load()
     FullScanThread.start()
-    Processor.run() # main loop
+    Processor.run()  # main loop
     sys.exit(1)
 
 if (__name__ == '__main__'):
