@@ -1,11 +1,16 @@
 all: check
 
-check:
+check: syntax pylint pycodestyle
+
+syntax:
 	python -m py_compile niced
 	rm -rf __pycache__
 
 pylint:
 	pylint niced
+
+pycodestyle:
+	pycodestyle niced
 
 install:
 	mkdir -p /usr/bin
