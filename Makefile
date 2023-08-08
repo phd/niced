@@ -24,6 +24,14 @@ else
 	cp nicedrc /etc/
 endif
 
+install_config:
+ifneq ($(shell id -u), 0)
+	sudo make $@
+else
+	mkdir -p /etc
+	cp nicedrc /etc/
+endif
+
 uninstall:
 ifneq ($(shell id -u), 0)
 	sudo make $@
