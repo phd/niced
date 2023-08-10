@@ -2,10 +2,9 @@
 
 ''' niced - a daemon renicing new and existing processes '''
 
+# pylint: disable=broad-except
 # pylint: disable=superfluous-parens
 # pylint: disable=too-few-public-methods
-# pylint: disable=bare-except
->>>>>>> 025c2ac (working renicing, fixes)
 
 import re
 import signal
@@ -18,7 +17,12 @@ import psutil
 
 CONFIG_PATH                = '/etc/nicedrc'
 
+VERBOSE_SILENT             = -1
+VERBOSE_DEFAULT            = 0
+VERBOSE_YES                = 1
+
 DEFAULT_FULL_SCAN_INTERVAL = 10
+DEFAULT_VERBOSE            = VERBOSE_DEFAULT
 
 NICE_DEFAULT_PRIORITY      = 10  # see nice(1)
 
@@ -29,6 +33,7 @@ IONICE_CLASS_IDLE          = 3
 
 class ConfigRuleAction:
     ''' actions available for configuration rules '''
+    FORCED         = '!'
     RECURSIVE      = 'R'  # None =  0,     1...
     NICE           = 'n'  # None = 10,   -20...19
     IO_REALTIME    = 'r'  # None =  4,     0...7
@@ -39,23 +44,28 @@ class ConfigRuleAction:
 
 class ConfigRule():
     ''' parsed configuration line '''
+    # pylint: disable=too-many-instance-attributes
     match     = None
     regex     = None
+    forced    = None
     recursive = None
     nice      = None
     io_class  = None
     io_nice   = None
     oom       = None
     def __str__(self):
-        return 'ConfigRule(\n' + \
-            f'        match={self.match        }\n' + \
-            f'        regex={self.regex.pattern}\n' + \
-            f'    recursive={self.recursive    }\n' + \
-            f'         nice={self.nice         }\n' + \
-            f'     io_class={self.io_class     }\n' + \
-            f'      io_nice={self.io_nice      }\n' + \
-            f'          oom={self.oom          }\n' + \
+        return (
+            'ConfigRule(\n'
+            f'        match={self.match        }\n'
+            f'        regex={self.regex.pattern}\n'
+            f'       forced={self.forced       }\n'
+            f'    recursive={self.recursive    }\n'
+            f'         nice={self.nice         }\n'
+            f'     io_class={self.io_class     }\n'
+            f'      io_nice={self.io_nice      }\n'
+            f'          oom={self.oom          }\n'
             ')'
+        )
     @staticmethod
     def from_config_line(line):
         ''' create ConfigRule by parsing given configuration line '''
@@ -63,12 +73,14 @@ class ConfigRule():
         line = re.sub('\\s+', ' ', line)
         items = line.split(' ', maxsplit = 1)
         actions_str = items[0]
-        actions_str = re.sub('([a-zA-Z])', ',\\1', actions_str)
+        actions_str = re.sub('([^,0-9-])', ',\\1', actions_str)
         actions = actions_str.split(',')
         actions = list(filter(None, actions))
         actions = [[action[0], action[1:]] for action in actions]
         for action in actions:
             match (action[0]):
+                case ConfigRuleAction.FORCED:
+                    rule.forced = True
                 case ConfigRuleAction.RECURSIVE:
                     rule.recursive = int_or_none(action[1]) or 0
                 case ConfigRuleAction.NICE | '':
@@ -92,7 +104,7 @@ class ConfigRule():
                         rule.oom = float(rule.oom)
         rule.match = items[1]
         match = rule.match
-        if (not match.startswith('(')):
+        if (not match.startswith('(') and not match.startswith('^')):
             match = '(^|[^\\s]*/)(' + match + ')(\\s|$)'
         rule.regex = re.compile(match)
         return rule
@@ -101,6 +113,7 @@ class Config():
     ''' config singleton '''
     rules              = []
     full_scan_interval = DEFAULT_FULL_SCAN_INTERVAL
+    verbose            = DEFAULT_VERBOSE
     @staticmethod
     def load():
         ''' method loading configuration from config file '''
@@ -111,8 +124,14 @@ class Config():
                     continue
                 if (line[0] == '@'):
                     line = line[1:].strip()
-                    items = re.split('\\s*=\\s*', line, maxsplit = 1)
-                    setattr(Config, items[0], items[1])
+                    split = re.split('\\s*=\\s*', line, maxsplit = 1)
+                    items = dict(enumerate(split))
+                    try:
+                        attribute = items.get(0, None)
+                        if (attribute):
+                            setattr(Config, attribute, items.get(1, True))
+                    except Exception:
+                        pass
                     continue
                 rule = ConfigRule.from_config_line(line)
                 Config.rules.append(rule)
@@ -127,14 +146,16 @@ class ForkstatEntry():
     duration = None
     command  = None
     def __str__(self):
-        return 'ForkstatEntry(\n' + \
-            f'        time={self.time    }\n' + \
-            f'       event={self.event   }\n' + \
-            f'         pid={self.pid     }\n' + \
-            f'        info={self.info    }\n' + \
-            f'    duration={self.duration}\n' + \
-            f'     command={self.command }\n' + \
+        return (
+            'ForkstatEntry(\n'
+            f'        time={self.time    }\n'
+            f'       event={self.event   }\n'
+            f'         pid={self.pid     }\n'
+            f'        info={self.info    }\n'
+            f'    duration={self.duration}\n'
+            f'     command={self.command }\n'
             ')'
+        )
     @staticmethod
     def from_forkstat_line(line):
         ''' create ForkstatEntry by parsing a process line from forkstat '''
@@ -183,7 +204,7 @@ class Forkstat():
         ''' start forkstat subprocess in the background '''
         # pylint: disable=consider-using-with
         Forkstat._process = subprocess.Popen(
-            ['forkstat', '-l', '-e', 'clone,exec,fork'],
+            ['forkstat', '-l', '-e', 'clone,exec,fork,exit'],
             stdout = subprocess.PIPE
         )
     @staticmethod
@@ -203,11 +224,15 @@ class ProcessEntry():
     def __init__(self, pid = None, command = None):
         self.pid     = pid
         self.command = command
+    def __hash__(self):
+        return self.pid
     def __str__(self):
-        return 'ProcessEntry(\n' + \
-            f'        pid={self.pid    }\n' + \
-            f'    command={self.command}\n' + \
+        return (
+            'ProcessEntry(\n'
+            f'        pid={self.pid    }\n'
+            f'    command={self.command}\n'
             ')'
+        )
     @staticmethod
     def from_forkstat_entry(forkstat_entry):
         ''' create ProcessEntry from ForkstatEntry '''
@@ -216,6 +241,7 @@ class ProcessEntry():
 class Processor():
     ''' main loop matching and renicing processes '''
     _lock = threading.Lock()
+    _processed = set()
     @staticmethod
     def run():
         ''' run main loop, it exits if forkstat dies '''
@@ -224,32 +250,98 @@ class Processor():
             forkstat_entry = Forkstat.next_entry()
             if (forkstat_entry is None):
                 break
+            if (forkstat_entry.event == 'exit'):
+                Processor.handle_process_exit(forkstat_entry.pid)
             if (not forkstat_entry.valid):
                 continue
             process_entry = ProcessEntry.from_forkstat_entry(forkstat_entry)
             Processor.handle_process_entry(process_entry)
     @staticmethod
+    def cleanup_processed(existing_pids):
+        ''' remove finished processes from _processed set '''
+        with Processor._lock:
+            for process_entry in Processor._processed.copy():
+                if (process_entry.pid not in existing_pids):
+                    if (int(Config.verbose) >= VERBOSE_DEFAULT):
+                        print(
+                            'dead('
+                            f'{process_entry.pid}'
+                            f', {process_entry.command}'
+                            ')'
+                        )
+                    Processor._processed.remove(process_entry)
+    @staticmethod
+    def handle_process_exit(pid):
+        ''' remove a finished process from _processed set '''
+        with Processor._lock:
+            for process_entry in Processor._processed.copy():
+                if (process_entry.pid == pid):
+                    if (int(Config.verbose) >= VERBOSE_DEFAULT):
+                        print(
+                            'exit('
+                            f'{process_entry.pid}'
+                            f', {process_entry.command}'
+                            ')'
+                        )
+                    Processor._processed.remove(process_entry)
+                    break
+    @staticmethod
     def handle_process_entry(process_entry):
         ''' match and renice given ProcessEntry '''
-        for rule in Config.rules:
-            if (re.match(rule.regex, process_entry.command)):
-                with Processor._lock:
-                    # print(process_entry)
+        with Processor._lock:
+            matched = False
+            for rule in Config.rules:
+                if (re.match(rule.regex, process_entry.command)):
+                    matched = True
+                    if (not rule.forced):
+                        already_processed = next(
+                            (
+                                True
+                                for processed in Processor._processed
+                                if processed.pid == process_entry.pid
+                            ),
+                            False
+                        )
+                        if (already_processed):
+                            continue
                     if (rule.nice is not None):
-                        # print(f'> nice({rule.nice})')
+                        if (int(Config.verbose) >= VERBOSE_DEFAULT):
+                            print(
+                                'nice('
+                                f'[{rule.nice}]'
+                                f', {process_entry.pid}'
+                                f', {process_entry.command}'
+                                ')'
+                            )
                         Processor.nice(
                             process_entry.pid, rule.nice
                         )
                     if (rule.io_class is not None):
-                        # print(f'> ionice({rule.io_class}, {rule.io_nice})')
+                        if (int(Config.verbose) >= VERBOSE_DEFAULT):
+                            print(
+                                'ionice('
+                                f'[{rule.io_class}, {rule.io_nice}]'
+                                f', {process_entry.pid}'
+                                f', {process_entry.command}'
+                                ')'
+                            )
                         Processor.ionice(
                             process_entry.pid, rule.io_class, rule.io_nice
                         )
                     if (rule.oom is not None):
-                        # print(f'> oom({rule.oom})')
+                        if (int(Config.verbose) >= VERBOSE_DEFAULT):
+                            print(
+                                'oom('
+                                f'[{rule.oom}]'
+                                f', {process_entry.pid}'
+                                f', {process_entry.command}'
+                                ')'
+                            )
                         Processor.oom(
                             process_entry.pid, rule.oom
                         )
+            if (matched):
+                Processor._processed.add(process_entry)
     @staticmethod
     def nice(pid, priority):
         ''' renice given process to given priority '''
@@ -257,7 +349,7 @@ class Processor():
             process = psutil.Process(pid)
             process.nice(priority)
             return True
-        except:
+        except Exception:
             return False
     @staticmethod
     def ionice(pid, io_class, io_nice):
@@ -267,7 +359,7 @@ class Processor():
             if (io_nice is not None):
                 cmd.append(['-n', str(io_nice)])
             subprocess.run(cmd, check = True)
-        except:
+        except Exception:
             return False
         return True
     @staticmethod
@@ -278,13 +370,13 @@ class Processor():
                 f'/proc/{pid}/oom_score_adj', 'w', encoding = 'utf-8'
             ) as file:
                 file.write(Processor.oom_as_oom_score_adj(oom))
-        except:
+        except Exception:
             try:
                 with open(
                     f'/proc/{pid}/oom_adj', 'w', encoding = 'utf-8'
                 ) as file:
                     file.write(Processor.oom_as_oom_adj(oom))
-            except:
+            except Exception:
                 return False
         return True
     @staticmethod
@@ -313,12 +405,19 @@ class FullScanThread():
     @staticmethod
     def _scan():
         while (True):
+            if (int(Config.verbose) >= VERBOSE_YES):
+                print("Full scan...")
+            existing_pids = set()
             for process in psutil.process_iter():
+                existing_pids.add(process.pid)
                 process_entry = ProcessEntry()
                 process_entry.pid     = process.pid
                 process_entry.command = ' '.join(process.cmdline())
                 if (process_entry.pid and process_entry.command):
                     Processor.handle_process_entry(process_entry)
+            Processor.cleanup_processed(existing_pids)
+            if (int(Config.verbose) >= VERBOSE_YES):
+                print("Full scan done.")
             time.sleep(int(Config.full_scan_interval))
     @staticmethod
     def start():
@@ -333,7 +432,7 @@ def int_or_none(string):
     ''' convert string to int or return None in case of error '''
     try:
         return int(string)
-    except:
+    except Exception:
         return None
 
 def convert_range(value1, min1, max1, min2, max2):
@@ -350,6 +449,7 @@ def sig_exit(sig, frame):
 
 def main():
     ''' main entry point '''
+    print("Starting...")
     signal.signal(signal.SIGINT,  sig_exit)
     signal.signal(signal.SIGTERM, sig_exit)
     signal.signal(signal.SIGCONT, sig_exit)
