@@ -19,7 +19,7 @@ else
 	mkdir -p /usr/bin
 	cp niced /usr/bin/
 	mkdir -p /etc/systemd/system
-	cp niced.service /etc/systemd/system/
+	cp niced.service /lib/systemd/system/
 	mkdir -p /etc
 	cp nicedrc /etc/
 endif
@@ -37,7 +37,7 @@ ifneq ($(shell id -u), 0)
 	sudo make $@
 else
 	rm -f /usr/bin/niced
-	rm -f /etc/systemd/system/niced.service
+	rm -f /lib/systemd/system/niced.service
 endif
 
 remove: uninstall
@@ -48,3 +48,21 @@ ifneq ($(shell id -u), 0)
 else
 	rm -f /etc/nicedrc
 endif
+
+service_status:
+	sudo systemctl status niced.service
+
+service_enable:
+	sudo systemctl enable niced.service
+
+service_disable:
+	sudo systemctl disable niced.service
+
+service_start:
+	sudo systemctl start niced.service
+
+service_stop:
+	sudo systemctl stop niced.service
+
+service_restart:
+	sudo systemctl restart niced.service
