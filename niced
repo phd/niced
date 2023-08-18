@@ -161,8 +161,12 @@ class Config():
         except Exception:
             eprint(f'Failed to load configuration file: {Config.path}')
             sys.exit(1)
-        if (int(Config.verbose) >= VERBOSE_YES):
+        if (Config.verbosity(VERBOSE_YES)):
             eprint(f'Loaded configuration file: {Config.path}')
+    @staticmethod
+    def verbosity(level):
+        ''' return true if verbosity is set to as least the given level '''
+        return (int(Config.verbose) >= level)
 
 class ForkstatEntry():
     ''' parsed process line from forkstat '''
@@ -290,7 +294,7 @@ class Processor():
         with Processor._lock:
             for process_entry in Processor._processed.copy():
                 if (process_entry.pid not in existing_pids):
-                    if (int(Config.verbose) >= VERBOSE_DEFAULT):
+                    if (Config.verbosity(VERBOSE_DEFAULT)):
                         eprint(
                             'dead('
                             f'{process_entry.pid}'
@@ -304,7 +308,7 @@ class Processor():
         with Processor._lock:
             for process_entry in Processor._processed.copy():
                 if (process_entry.pid == pid):
-                    if (int(Config.verbose) >= VERBOSE_DEFAULT):
+                    if (Config.verbosity(VERBOSE_DEFAULT)):
                         eprint(
                             'exit('
                             f'{process_entry.pid}'
@@ -333,7 +337,7 @@ class Processor():
                         if (already_processed):
                             continue
                     if (rule.nice is not None):
-                        if (int(Config.verbose) >= VERBOSE_DEFAULT):
+                        if (Config.verbosity(VERBOSE_DEFAULT)):
                             eprint(
                                 'nice('
                                 f'[{rule.nice}]'
@@ -345,7 +349,7 @@ class Processor():
                             process_entry.pid, rule.nice
                         )
                     if (rule.io_class is not None):
-                        if (int(Config.verbose) >= VERBOSE_DEFAULT):
+                        if (Config.verbosity(VERBOSE_DEFAULT)):
                             eprint(
                                 'ionice('
                                 f'[{rule.io_class}, {rule.io_nice}]'
@@ -357,7 +361,7 @@ class Processor():
                             process_entry.pid, rule.io_class, rule.io_nice
                         )
                     if (rule.oom is not None):
-                        if (int(Config.verbose) >= VERBOSE_DEFAULT):
+                        if (Config.verbosity(VERBOSE_DEFAULT)):
                             eprint(
                                 'oom('
                                 f'[{rule.oom}]'
@@ -433,7 +437,7 @@ class FullScanThread():
     @staticmethod
     def _scan():
         while (True):
-            if (int(Config.verbose) >= VERBOSE_YES):
+            if (Config.verbosity(VERBOSE_YES)):
                 eprint('Full scan...')
             existing_pids = set()
             for process in psutil.process_iter():
@@ -444,7 +448,7 @@ class FullScanThread():
                 if (process_entry.pid and process_entry.command):
                     Processor.handle_process_entry(process_entry)
             Processor.cleanup_processed(existing_pids)
-            if (int(Config.verbose) >= VERBOSE_YES):
+            if (Config.verbosity(VERBOSE_YES)):
                 eprint('Full scan done.')
             time.sleep(int(Config.full_scan_interval))
     @staticmethod
