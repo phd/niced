@@ -12,6 +12,9 @@ pylint:
 pycodestyle:
 	pycodestyle niced
 
+run:
+	sudo ./niced --rcfile ./nicedrc
+
 install:
 ifneq ($(shell id -u), 0)
 	sudo make $@
