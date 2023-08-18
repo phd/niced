@@ -47,6 +47,10 @@ IONICE_CLASS_REALTIME      = 1
 IONICE_CLASS_BEST_EFFORT   = 2
 IONICE_CLASS_IDLE          = 3
 
+def eprint(*args, **kwargs):
+    ''' print() to stderr '''
+    print(*args, file=sys.stderr, **kwargs)
+
 class ConfigRuleAction:
     ''' actions available for configuration rules '''
     FORCED         = '!'
@@ -279,7 +283,7 @@ class Processor():
             for process_entry in Processor._processed.copy():
                 if (process_entry.pid not in existing_pids):
                     if (int(Config.verbose) >= VERBOSE_DEFAULT):
-                        print(
+                        eprint(
                             'dead('
                             f'{process_entry.pid}'
                             f', {process_entry.command}'
@@ -293,7 +297,7 @@ class Processor():
             for process_entry in Processor._processed.copy():
                 if (process_entry.pid == pid):
                     if (int(Config.verbose) >= VERBOSE_DEFAULT):
-                        print(
+                        eprint(
                             'exit('
                             f'{process_entry.pid}'
                             f', {process_entry.command}'
@@ -322,7 +326,7 @@ class Processor():
                             continue
                     if (rule.nice is not None):
                         if (int(Config.verbose) >= VERBOSE_DEFAULT):
-                            print(
+                            eprint(
                                 'nice('
                                 f'[{rule.nice}]'
                                 f', {process_entry.pid}'
@@ -334,7 +338,7 @@ class Processor():
                         )
                     if (rule.io_class is not None):
                         if (int(Config.verbose) >= VERBOSE_DEFAULT):
-                            print(
+                            eprint(
                                 'ionice('
                                 f'[{rule.io_class}, {rule.io_nice}]'
                                 f', {process_entry.pid}'
@@ -346,7 +350,7 @@ class Processor():
                         )
                     if (rule.oom is not None):
                         if (int(Config.verbose) >= VERBOSE_DEFAULT):
-                            print(
+                            eprint(
                                 'oom('
                                 f'[{rule.oom}]'
                                 f', {process_entry.pid}'
@@ -422,7 +426,7 @@ class FullScanThread():
     def _scan():
         while (True):
             if (int(Config.verbose) >= VERBOSE_YES):
-                print("Full scan...")
+                eprint("Full scan...")
             existing_pids = set()
             for process in psutil.process_iter():
                 existing_pids.add(process.pid)
@@ -433,7 +437,7 @@ class FullScanThread():
                     Processor.handle_process_entry(process_entry)
             Processor.cleanup_processed(existing_pids)
             if (int(Config.verbose) >= VERBOSE_YES):
-                print("Full scan done.")
+                eprint("Full scan done.")
             time.sleep(int(Config.full_scan_interval))
     @staticmethod
     def start():
@@ -460,12 +464,12 @@ def convert_range(value1, min1, max1, min2, max2):
 def sig_exit(sig, frame):
     ''' exit on received signal '''
     del sig, frame
-    print("Exiting...")
+    eprint("Exiting...")
     sys.exit(0)
 
 def main():
     ''' main entry point '''
-    print("Starting...")
+    eprint("Starting...")
     signal.signal(signal.SIGINT,  sig_exit)
     signal.signal(signal.SIGTERM, sig_exit)
     signal.signal(signal.SIGCONT, sig_exit)
