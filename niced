@@ -29,14 +29,15 @@ import sys
 import threading
 import time
 
+import argparse
 import psutil
 
-CONFIG_PATH                = '/etc/nicedrc'
 
 VERBOSE_SILENT             = -1
 VERBOSE_DEFAULT            = 0
 VERBOSE_YES                = 1
 
+DEFAULT_CONFIG_PATH        = '/etc/nicedrc'
 DEFAULT_FULL_SCAN_INTERVAL = 10
 DEFAULT_VERBOSE            = VERBOSE_DEFAULT
 
@@ -131,30 +132,37 @@ class ConfigRule():
 
 class Config():
     ''' config singleton '''
+    path               = DEFAULT_CONFIG_PATH
     rules              = []
     full_scan_interval = DEFAULT_FULL_SCAN_INTERVAL
     verbose            = DEFAULT_VERBOSE
     @staticmethod
     def load():
         ''' method loading configuration from config file '''
-        with open(CONFIG_PATH, mode = 'r', encoding = 'utf8') as config_file:
-            for line in config_file:
-                line = line.strip()
-                if (line[0] == '#'):
-                    continue
-                if (line[0] == '@'):
-                    line = line[1:].strip()
-                    split = re.split('\\s*=\\s*', line, maxsplit = 1)
-                    items = dict(enumerate(split))
-                    try:
-                        attribute = items.get(0, None)
-                        if (attribute):
-                            setattr(Config, attribute, items.get(1, True))
-                    except Exception:
-                        pass
-                    continue
-                rule = ConfigRule.from_config_line(line)
-                Config.rules.append(rule)
+        try:
+            with open(Config.path, mode = 'r', encoding = 'utf8') as rcfile:
+                for line in rcfile:
+                    line = line.strip()
+                    if (line[0] == '#'):
+                        continue
+                    if (line[0] == '@'):
+                        line = line[1:].strip()
+                        split = re.split('\\s*=\\s*', line, maxsplit = 1)
+                        items = dict(enumerate(split))
+                        try:
+                            attribute = items.get(0, None)
+                            if (attribute):
+                                setattr(Config, attribute, items.get(1, True))
+                        except Exception:
+                            pass
+                        continue
+                    rule = ConfigRule.from_config_line(line)
+                    Config.rules.append(rule)
+        except Exception:
+            eprint(f'Failed to load configuration file: {Config.path}')
+            sys.exit(1)
+        if (int(Config.verbose) >= VERBOSE_YES):
+            eprint(f'Loaded configuration file: {Config.path}')
 
 class ForkstatEntry():
     ''' parsed process line from forkstat '''
@@ -426,7 +434,7 @@ class FullScanThread():
     def _scan():
         while (True):
             if (int(Config.verbose) >= VERBOSE_YES):
-                eprint("Full scan...")
+                eprint('Full scan...')
             existing_pids = set()
             for process in psutil.process_iter():
                 existing_pids.add(process.pid)
@@ -437,7 +445,7 @@ class FullScanThread():
                     Processor.handle_process_entry(process_entry)
             Processor.cleanup_processed(existing_pids)
             if (int(Config.verbose) >= VERBOSE_YES):
-                eprint("Full scan done.")
+                eprint('Full scan done.')
             time.sleep(int(Config.full_scan_interval))
     @staticmethod
     def start():
@@ -464,15 +472,29 @@ def convert_range(value1, min1, max1, min2, max2):
 def sig_exit(sig, frame):
     ''' exit on received signal '''
     del sig, frame
-    eprint("Exiting...")
+    eprint('Exiting...')
     sys.exit(0)
+
+def arguments():
+    ''' parse command line arguments '''
+    parser = argparse.ArgumentParser(
+        description = 'a daemon renicing new and existing processes'
+    )
+    parser.add_argument(
+        '--rcfile',
+        help = 'use given configuration file instead of /etc/nicedrc'
+    )
+    args = parser.parse_args()
+    if (args.rcfile is not None):
+        Config.path = args.rcfile
 
 def main():
     ''' main entry point '''
-    eprint("Starting...")
     signal.signal(signal.SIGINT,  sig_exit)
     signal.signal(signal.SIGTERM, sig_exit)
     signal.signal(signal.SIGCONT, sig_exit)
+    arguments()
+    eprint('Starting...')
     Config.load()
     FullScanThread.start()
     Processor.run()  # main loop
