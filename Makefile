@@ -25,6 +25,7 @@ else
 	cp niced.service /lib/systemd/system/
 	mkdir -p /etc
 	cp nicedrc /etc/
+	systemctl daemon-reload
 endif
 
 install_config:
