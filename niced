@@ -323,11 +323,12 @@ class Processor():
     def handle_process_entry(process_entry):
         ''' match and renice given ProcessEntry '''
         with Processor._lock:
-            matched = False
+            matched           = False
+            already_processed = None
             for rule in Config.rules:
                 if (re.match(rule.regex, process_entry.command)):
                     matched = True
-                    if (not rule.forced):
+                    if (already_processed is None):
                         already_processed = next(
                             (
                                 True
@@ -336,8 +337,8 @@ class Processor():
                             ),
                             False
                         )
-                        if (already_processed):
-                            continue
+                    if (already_processed and not rule.forced):
+                        continue
                     if (rule.nice is not None):
                         if (Config.verbosity(VERBOSE_DEFAULT)):
                             eprint(
@@ -374,7 +375,7 @@ class Processor():
                         Processor.oom(
                             process_entry.pid, rule.oom
                         )
-            if (matched):
+            if (matched and not already_processed):
                 Processor._processed.add(process_entry)
     @staticmethod
     def nice(pid, priority):
