@@ -302,6 +302,8 @@ class Processor():
                             ')'
                         )
                     Processor._processed.remove(process_entry)
+            if (Config.verbosity(VERBOSE_YES)):
+                eprint(f'{len(Processor._processed)} processes on the list')
     @staticmethod
     def handle_process_exit(pid):
         ''' remove a finished process from _processed set '''
