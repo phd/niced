@@ -55,13 +55,13 @@ def eprint(*args, **kwargs):
 class ConfigRuleAction:
     ''' actions available for configuration rules '''
     FORCED         = '!'
-    RECURSIVE      = 'R'  # None =  0,     1...
-    NICE           = 'n'  # None = 10,   -20...19
-    IO_REALTIME    = 'r'  # None =  4,     0...7
-    IO_BEST_EFFORT = 'b'  # None =  4,     0...7
-    IO_IDLE        = 'i'  # None =  4,     0...7
-    OOM_ADJ        = 'o'  # None =  0,   -17...15
-    OOM_SCORE_ADJ  = 'O'  # None =  0, -1000...1000
+    RECURSIVE      = 'R'  # range:     0...    , None =  0
+    NICE           = 'n'  # range:   -20...19  , None = 10
+    IO_REALTIME    = 'r'  # range:     0...7   , None =  4
+    IO_BEST_EFFORT = 'b'  # range:     0...7   , None =  4
+    IO_IDLE        = 'i'  # range:     0...7   , None =  4
+    OOM_ADJ        = 'o'  # range:   -17...15  , None =  0
+    OOM_SCORE_ADJ  = 'O'  # range: -1000...1000, None =  0
 
 class ConfigRule():
     ''' parsed configuration line '''
