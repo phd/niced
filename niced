@@ -289,7 +289,7 @@ class Processor():
             process_entry = ProcessEntry.from_forkstat_entry(forkstat_entry)
             Processor.handle_process_entry(process_entry)
     @staticmethod
-    def cleanup_processed(existing_pids):
+    def cleanup_dead(existing_pids):
         ''' remove finished processes from _processed set '''
         with Processor._lock:
             for process_entry in Processor._processed.copy():
@@ -438,27 +438,36 @@ class Processor():
 class FullScanThread():
     ''' thread periodically scanning full process tree '''
     @staticmethod
-    def _scan():
-        while (True):
-            if (Config.verbosity(VERBOSE_YES)):
-                eprint('Full scan...')
-            existing_pids = set()
-            for process in psutil.process_iter():
-                existing_pids.add(process.pid)
-                process_entry = ProcessEntry()
-                process_entry.pid     = process.pid
-                process_entry.command = ' '.join(process.cmdline())
+    def scan():
+        ''' scan full process tree '''
+        if (Config.verbosity(VERBOSE_YES)):
+            eprint('Full scan...')
+        pids = psutil.pids()
+        for pid in pids:
+            try:
+                command = ' '.join(psutil.Process(pid).cmdline())
+                process_entry = ProcessEntry(pid, command)
                 if (process_entry.pid and process_entry.command):
                     Processor.handle_process_entry(process_entry)
-            Processor.cleanup_processed(existing_pids)
-            if (Config.verbosity(VERBOSE_YES)):
-                eprint('Full scan done.')
+            except Exception as exception:
+                eprint(exception)
+        Processor.cleanup_dead(pids)
+        if (Config.verbosity(VERBOSE_YES)):
+            eprint('Full scan done.')
+    @staticmethod
+    def _scanning():
+        ''' periodically scan full process tree '''
+        while (True):
+            try:
+                FullScanThread.scan()
+            except Exception as exception:
+                eprint(exception)
             time.sleep(int(Config.full_scan_interval))
     @staticmethod
     def start():
         ''' start the full-scan thread in the background '''
         thread = threading.Thread(
-            target = FullScanThread._scan,
+            target = FullScanThread._scanning,
             daemon = True
         )
         thread.start()
