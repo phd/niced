@@ -70,3 +70,6 @@ service_stop:
 
 service_restart:
 	sudo systemctl restart niced.service
+
+service_logs:
+	sudo journalctl -u niced.service -b
