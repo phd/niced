@@ -55,6 +55,7 @@ def eprint(*args, **kwargs):
 
 class ConfigRuleAction:
     ''' actions available for configuration rules '''
+    IGNORECASE     = 'I'
     FORCED         = '!'
     RECURSIVE      = 'R'  # range:     1...    , None = inf
     NICE           = 'n'  # range:   -20...19  , None =  10
@@ -67,30 +68,32 @@ class ConfigRuleAction:
 class ConfigRule():
     ''' parsed configuration line '''
     # pylint: disable=too-many-instance-attributes
-    match     = None
-    regex     = None
-    forced    = None
-    recursive = None
-    nice      = None
-    io_class  = None
-    io_nice   = None
-    oom       = None
+    match      = None
+    regex      = None
+    ignorecase = None
+    forced     = None
+    recursive  = None
+    nice       = None
+    io_class   = None
+    io_nice    = None
+    oom        = None
     def __str__(self):
         return (
             'ConfigRule(\n'
-            f'        match={self.match        }\n'
-            f'        regex={self.regex.pattern}\n'
-            f'       forced={self.forced       }\n'
-            f'    recursive={self.recursive    }\n'
-            f'         nice={self.nice         }\n'
-            f'     io_class={self.io_class     }\n'
-            f'      io_nice={self.io_nice      }\n'
-            f'          oom={self.oom          }\n'
+            f'         match={self.match        }\n'
+            f'         regex={self.regex.pattern}\n'
+            f'    ignorecase={self.ignorecase   }\n'
+            f'        forced={self.forced       }\n'
+            f'     recursive={self.recursive    }\n'
+            f'          nice={self.nice         }\n'
+            f'      io_class={self.io_class     }\n'
+            f'       io_nice={self.io_nice      }\n'
+            f'           oom={self.oom          }\n'
             ')'
         )
     def matches(self, process_entry):
         ''' check if rule matches ProcessEntry or its parents if recursive '''
-        if (re.match(self.regex, process_entry.command)):
+        if (self.regex.match(process_entry.command)):
             return True
         if (self.recursive):
             try:
@@ -98,7 +101,7 @@ class ConfigRule():
                 rec = self.recursive
                 while (rec_proc and rec):
                     rec_process_entry = ProcessEntry.from_process(rec_proc)
-                    if (re.match(self.regex, rec_process_entry.command)):
+                    if (self.regex.match(rec_process_entry.command)):
                         return True
                     rec_proc = rec_proc.parent()
                     rec -= 1
@@ -121,6 +124,8 @@ class ConfigRule():
         actions = [[action[0], action[1:]] for action in actions]
         for action in actions:
             match (action[0]):
+                case ConfigRuleAction.IGNORECASE:
+                    rule.ignorecase = True
                 case ConfigRuleAction.FORCED:
                     rule.forced = True
                 case ConfigRuleAction.RECURSIVE:
@@ -148,7 +153,10 @@ class ConfigRule():
         match = rule.match
         if (not match.startswith('(') and not match.startswith('^')):
             match = '(^|[^\\s]*/)(' + match + ')(\\s|$)'
-        rule.regex = re.compile(match)
+        flags = 0
+        if (rule.ignorecase):
+            flags |= re.IGNORECASE
+        rule.regex = re.compile(match, flags)
         return rule
 
 class Config():

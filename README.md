@@ -42,6 +42,7 @@ Actions can be split with a comma, or written together without spacing.
 `action[parameter]`
 
 - modifiers:
+    - `I` - ignore case
     - `!` - forced
     - `R` - recursive: `1...`, None = `inf`
 - nice:
@@ -80,7 +81,7 @@ n-5  plasmashell
 n0   krunner
 n0   konsole
 n0   bash
-n1R  screen
+n1RI screen
 in10 ark
 in10 tar
 in10 unxz
