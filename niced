@@ -317,6 +317,7 @@ class Processor():
                 break
             if (forkstat_entry.event == 'exit'):
                 Processor.handle_process_exit(forkstat_entry.pid)
+                continue
             if (not forkstat_entry.valid):
                 continue
             process_entry = ProcessEntry.from_forkstat_entry(forkstat_entry)
