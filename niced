@@ -22,6 +22,7 @@
 # pylint: disable=superfluous-parens
 # pylint: disable=too-few-public-methods
 
+import math
 import re
 import signal
 import subprocess
@@ -55,13 +56,13 @@ def eprint(*args, **kwargs):
 class ConfigRuleAction:
     ''' actions available for configuration rules '''
     FORCED         = '!'
-    RECURSIVE      = 'R'  # range:     0...    , None =  0
-    NICE           = 'n'  # range:   -20...19  , None = 10
-    IO_REALTIME    = 'r'  # range:     0...7   , None =  4
-    IO_BEST_EFFORT = 'b'  # range:     0...7   , None =  4
-    IO_IDLE        = 'i'  # range:     0...7   , None =  4
-    OOM_ADJ        = 'o'  # range:   -17...15  , None =  0
-    OOM_SCORE_ADJ  = 'O'  # range: -1000...1000, None =  0
+    RECURSIVE      = 'R'  # range:     1...    , None = inf
+    NICE           = 'n'  # range:   -20...19  , None =  10
+    IO_REALTIME    = 'r'  # range:     0...7   , None =   4
+    IO_BEST_EFFORT = 'b'  # range:     0...7   , None =   4
+    IO_IDLE        = 'i'  # range:     0...7   , None =   4
+    OOM_ADJ        = 'o'  # range:   -17...15  , None =   0
+    OOM_SCORE_ADJ  = 'O'  # range: -1000...1000, None =   0
 
 class ConfigRule():
     ''' parsed configuration line '''
@@ -87,6 +88,26 @@ class ConfigRule():
             f'          oom={self.oom          }\n'
             ')'
         )
+    def matches(self, process_entry):
+        ''' check if rule matches ProcessEntry or its parents if recursive '''
+        if (re.match(self.regex, process_entry.command)):
+            return True
+        if (self.recursive):
+            try:
+                rec_proc = psutil.Process(process_entry.pid).parent()
+                rec = self.recursive
+                while (rec_proc and rec):
+                    rec_process_entry = ProcessEntry.from_process(rec_proc)
+                    if (re.match(self.regex, rec_process_entry.command)):
+                        return True
+                    rec_proc = rec_proc.parent()
+                    rec -= 1
+            except psutil.NoSuchProcess:
+                return False
+            except Exception as exception:
+                eprint(exception)
+                return False
+        return False
     @staticmethod
     def from_config_line(line):
         ''' create ConfigRule by parsing given configuration line '''
@@ -103,7 +124,7 @@ class ConfigRule():
                 case ConfigRuleAction.FORCED:
                     rule.forced = True
                 case ConfigRuleAction.RECURSIVE:
-                    rule.recursive = int_or_none(action[1]) or 0
+                    rule.recursive = int_or_none(action[1]) or math.inf
                 case ConfigRuleAction.NICE | '':
                     rule.nice = int_or_none(action[1])
                     if (rule.nice is None):
@@ -266,6 +287,10 @@ class ProcessEntry():
             ')'
         )
     @staticmethod
+    def from_process(proc):
+        ''' create ProcessEntry from psutil.Process '''
+        return ProcessEntry(proc.pid, ' '.join(proc.cmdline()))
+    @staticmethod
     def from_forkstat_entry(forkstat_entry):
         ''' create ProcessEntry from ForkstatEntry '''
         return ProcessEntry(forkstat_entry.pid, forkstat_entry.command)
@@ -323,22 +348,20 @@ class Processor():
     def handle_process_entry(process_entry):
         ''' match and renice given ProcessEntry '''
         with Processor._lock:
-            matched           = False
-            already_processed = None
+            already_processed = next(
+                (
+                    True
+                    for processed in Processor._processed
+                    if processed.pid == process_entry.pid
+                ),
+                False
+            )
+            matches_any_rule = False
             for rule in Config.rules:
-                if (re.match(rule.regex, process_entry.command)):
-                    matched = True
-                    if (already_processed is None):
-                        already_processed = next(
-                            (
-                                True
-                                for processed in Processor._processed
-                                if processed.pid == process_entry.pid
-                            ),
-                            False
-                        )
-                    if (already_processed and not rule.forced):
-                        continue
+                if (already_processed and not rule.forced):
+                    continue
+                if (rule.matches(process_entry)):
+                    matches_any_rule = True
                     if (rule.nice is not None):
                         if (Config.verbosity(VERBOSE_DEFAULT)):
                             eprint(
@@ -375,7 +398,7 @@ class Processor():
                         Processor.oom(
                             process_entry.pid, rule.oom
                         )
-            if (matched and not already_processed):
+            if (matches_any_rule and not already_processed):
                 Processor._processed.add(process_entry)
     @staticmethod
     def nice(pid, priority):
@@ -449,6 +472,8 @@ class FullScanThread():
                 process_entry = ProcessEntry(pid, command)
                 if (process_entry.pid and process_entry.command):
                     Processor.handle_process_entry(process_entry)
+            except psutil.NoSuchProcess:
+                pass
             except Exception as exception:
                 eprint(exception)
         Processor.cleanup_dead(pids)

@@ -43,7 +43,7 @@ Actions can be split with a comma, or written together without spacing.
 
 - modifiers:
     - `!` - forced
-    - `R` - recursive: `0...`, None = `0` (TODO)
+    - `R` - recursive: `1...`, None = `inf`
 - nice:
     - `n` - nice: `-20...19`, None = `10`
 - ionice:
@@ -80,6 +80,7 @@ n-5  plasmashell
 n0   krunner
 n0   konsole
 n0   bash
+n1R  screen
 in10 ark
 in10 tar
 in10 unxz
