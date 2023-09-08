@@ -29,7 +29,8 @@ Configuration is stored in `/etc/nicedrc` file.
 Modifying `niced` behavior:
 
 - `@full_scan_interval = N` in seconds, default is `10`
-- `@verbose = N`: `-1` silent, `0` default, `1` verbose
+- `@verbose = N`:
+  `-2` silent, `-1` quiet, `0` default, `1` verbose, `2` very, `3` debug
 
 ### Configuration line:
 
@@ -70,7 +71,7 @@ following regular expression syntax:
 
 ```
 @full_scan_interval = 10
-@verbose = 1
+@verbose = 3
 n-15 Xorg
 n-15 kwin_x11
 n-15 pulseaudio

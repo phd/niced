@@ -34,9 +34,12 @@ import time
 
 import psutil
 
-VERBOSE_SILENT             = -1
+VERBOSE_SILENT             = -2
+VERBOSE_QUIET              = -1
 VERBOSE_DEFAULT            = 0
 VERBOSE_YES                = 1
+VERBOSE_VERY               = 2
+VERBOSE_DEBUG              = 3
 
 DEFAULT_CONFIG_PATH        = '/etc/nicedrc'
 DEFAULT_FULL_SCAN_INTERVAL = 10
@@ -328,7 +331,7 @@ class Processor():
         with Processor._lock:
             for process_entry in Processor._processed.copy():
                 if (process_entry.pid not in existing_pids):
-                    if (Config.verbosity(VERBOSE_DEFAULT)):
+                    if (Config.verbosity(VERBOSE_VERY)):
                         eprint(
                             'dead('
                             f'{process_entry.pid}'
@@ -336,7 +339,7 @@ class Processor():
                             ')'
                         )
                     Processor._processed.remove(process_entry)
-            if (Config.verbosity(VERBOSE_YES)):
+            if (Config.verbosity(VERBOSE_DEBUG)):
                 eprint(f'{len(Processor._processed)} processes on the list')
     @staticmethod
     def handle_process_exit(pid):
@@ -344,7 +347,7 @@ class Processor():
         with Processor._lock:
             for process_entry in Processor._processed.copy():
                 if (process_entry.pid == pid):
-                    if (Config.verbosity(VERBOSE_DEFAULT)):
+                    if (Config.verbosity(VERBOSE_VERY)):
                         eprint(
                             'exit('
                             f'{process_entry.pid}'
@@ -487,7 +490,7 @@ class FullScanThread():
                 eprint(exception)
         Processor.cleanup_dead(pids)
         if (Config.verbosity(VERBOSE_YES)):
-            eprint('Full scan done.')
+            eprint('Full scan done')
     @staticmethod
     def _scanning():
         ''' periodically scan full process tree '''
@@ -522,7 +525,8 @@ def convert_range(value1, min1, max1, min2, max2):
 def sig_exit(sig, frame):
     ''' exit on received signal '''
     del sig, frame
-    eprint('Exiting...')
+    if (Config.verbosity(VERBOSE_QUIET)):
+        eprint('Exiting...')
     sys.exit(0)
 
 def sig_pdb(sig, frame):
@@ -550,7 +554,8 @@ def main():
     signal.signal(signal.SIGCONT, sig_exit)
     signal.signal(signal.SIGUSR1, sig_pdb)
     arguments()
-    eprint('Starting...')
+    if (Config.verbosity(VERBOSE_QUIET)):
+        eprint('Starting...')
     Config.load()
     FullScanThread.start()
     Processor.run()  # main loop
