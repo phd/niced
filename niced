@@ -52,6 +52,10 @@ IONICE_CLASS_REALTIME      = 1
 IONICE_CLASS_BEST_EFFORT   = 2
 IONICE_CLASS_IDLE          = 3
 
+def noop(*args, **kwargs):
+    ''' noop function '''
+    del args, kwargs
+
 def eprint(*args, **kwargs):
     ''' print() to stderr '''
     print(*args, file=sys.stderr, **kwargs)
@@ -111,7 +115,7 @@ class ConfigRule():
             except psutil.NoSuchProcess:
                 return False
             except Exception as exception:
-                eprint(exception)
+                log()(exception)
                 return False
         return False
     @staticmethod
@@ -191,10 +195,9 @@ class Config():
                     rule = ConfigRule.from_config_line(line)
                     Config.rules.append(rule)
         except Exception:
-            eprint(f'Failed to load configuration file: {Config.path}')
+            log()(f'Failed to load configuration file: {Config.path}')
             sys.exit(1)
-        if (Config.verbosity(VERBOSE_YES)):
-            eprint(f'Loaded configuration file: {Config.path}')
+        log(VERBOSE_YES)(f'Loaded configuration file: {Config.path}')
     @staticmethod
     def verbosity(level):
         ''' return true if verbosity is set to as least the given level '''
@@ -331,29 +334,28 @@ class Processor():
         with Processor._lock:
             for process_entry in Processor._processed.copy():
                 if (process_entry.pid not in existing_pids):
-                    if (Config.verbosity(VERBOSE_VERY)):
-                        eprint(
-                            'dead('
-                            f'{process_entry.pid}'
-                            f', {process_entry.command}'
-                            ')'
-                        )
+                    log(VERBOSE_VERY)(
+                        'dead('
+                        f'{process_entry.pid}'
+                        f', {process_entry.command}'
+                        ')'
+                    )
                     Processor._processed.remove(process_entry)
-            if (Config.verbosity(VERBOSE_DEBUG)):
-                eprint(f'{len(Processor._processed)} processes on the list')
+            log(VERBOSE_DEBUG)(
+                f'{len(Processor._processed)} processes on the list'
+            )
     @staticmethod
     def handle_process_exit(pid):
         ''' remove a finished process from _processed set '''
         with Processor._lock:
             for process_entry in Processor._processed.copy():
                 if (process_entry.pid == pid):
-                    if (Config.verbosity(VERBOSE_VERY)):
-                        eprint(
-                            'exit('
-                            f'{process_entry.pid}'
-                            f', {process_entry.command}'
-                            ')'
-                        )
+                    log(VERBOSE_VERY)(
+                        'exit('
+                        f'{process_entry.pid}'
+                        f', {process_entry.command}'
+                        ')'
+                    )
                     Processor._processed.remove(process_entry)
                     break
     @staticmethod
@@ -375,38 +377,35 @@ class Processor():
                 if (rule.matches(process_entry)):
                     matches_any_rule = True
                     if (rule.nice is not None):
-                        if (Config.verbosity(VERBOSE_DEFAULT)):
-                            eprint(
-                                'nice('
-                                f'[{rule.nice}]'
-                                f', {process_entry.pid}'
-                                f', {process_entry.command}'
-                                ')'
-                            )
+                        log(VERBOSE_DEFAULT)(
+                            'nice('
+                            f'[{rule.nice}]'
+                            f', {process_entry.pid}'
+                            f', {process_entry.command}'
+                            ')'
+                        )
                         Processor.nice(
                             process_entry.pid, rule.nice
                         )
                     if (rule.io_class is not None):
-                        if (Config.verbosity(VERBOSE_DEFAULT)):
-                            eprint(
-                                'ionice('
-                                f'[{rule.io_class}, {rule.io_nice}]'
-                                f', {process_entry.pid}'
-                                f', {process_entry.command}'
-                                ')'
-                            )
+                        log(VERBOSE_DEFAULT)(
+                            'ionice('
+                            f'[{rule.io_class}, {rule.io_nice}]'
+                            f', {process_entry.pid}'
+                            f', {process_entry.command}'
+                            ')'
+                        )
                         Processor.ionice(
                             process_entry.pid, rule.io_class, rule.io_nice
                         )
                     if (rule.oom is not None):
-                        if (Config.verbosity(VERBOSE_DEFAULT)):
-                            eprint(
-                                'oom('
-                                f'[{rule.oom}]'
-                                f', {process_entry.pid}'
-                                f', {process_entry.command}'
-                                ')'
-                            )
+                        log(VERBOSE_DEFAULT)(
+                            'oom('
+                            f'[{rule.oom}]'
+                            f', {process_entry.pid}'
+                            f', {process_entry.command}'
+                            ')'
+                        )
                         Processor.oom(
                             process_entry.pid, rule.oom
                         )
@@ -475,8 +474,7 @@ class FullScanThread():
     @staticmethod
     def scan():
         ''' scan full process tree '''
-        if (Config.verbosity(VERBOSE_YES)):
-            eprint('Full scan...')
+        log(VERBOSE_YES)('Full scan...')
         pids = psutil.pids()
         for pid in pids:
             try:
@@ -487,10 +485,9 @@ class FullScanThread():
             except psutil.NoSuchProcess:
                 pass
             except Exception as exception:
-                eprint(exception)
+                log()(exception)
         Processor.cleanup_dead(pids)
-        if (Config.verbosity(VERBOSE_YES)):
-            eprint('Full scan done')
+        log(VERBOSE_YES)('Full scan done')
     @staticmethod
     def _scanning():
         ''' periodically scan full process tree '''
@@ -498,7 +495,7 @@ class FullScanThread():
             try:
                 FullScanThread.scan()
             except Exception as exception:
-                eprint(exception)
+                log()(exception)
             time.sleep(int(Config.full_scan_interval))
     @staticmethod
     def start():
@@ -508,6 +505,12 @@ class FullScanThread():
             daemon = True
         )
         thread.start()
+
+def log(verbosity_level = -math.inf):
+    ''' return log handler for given verbosity: eprint() or noop() '''
+    if (Config.verbosity(verbosity_level)):
+        return eprint
+    return noop
 
 def int_or_none(string):
     ''' convert string to int or return None in case of error '''
@@ -525,8 +528,7 @@ def convert_range(value1, min1, max1, min2, max2):
 def sig_exit(sig, frame):
     ''' exit on received signal '''
     del sig, frame
-    if (Config.verbosity(VERBOSE_QUIET)):
-        eprint('Exiting...')
+    log(VERBOSE_QUIET)('Exiting...')
     sys.exit(0)
 
 def sig_pdb(sig, frame):
@@ -554,8 +556,7 @@ def main():
     signal.signal(signal.SIGCONT, sig_exit)
     signal.signal(signal.SIGUSR1, sig_pdb)
     arguments()
-    if (Config.verbosity(VERBOSE_QUIET)):
-        eprint('Starting...')
+    log(VERBOSE_QUIET)('Starting...')
     Config.load()
     FullScanThread.start()
     Processor.run()  # main loop
