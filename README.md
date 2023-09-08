@@ -79,9 +79,9 @@ n-10 barrier
 n-10 mpv
 n0R1 plasmashell
 n-5  plasmashell
-n0   krunner
+n0R1 krunner
+n-5  krunner
 n0   konsole
-n0   bash
 n1RI screen
 in10 ark
 in10 tar
