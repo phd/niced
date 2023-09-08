@@ -254,7 +254,7 @@ class ForkstatEntry():
                 forkstat_entry.info     = items[3]
                 forkstat_entry.duration = None
                 forkstat_entry.command  = ' '.join(items[4:])
-                forkstat_entry.valid    = (forkstat_entry.info == 'child')
+                forkstat_entry.valid    = False
         return forkstat_entry
 
 class Forkstat():
