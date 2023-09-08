@@ -159,7 +159,7 @@ class ConfigRule():
         rule.match = items[1]
         match = rule.match
         if (not match.startswith('(') and not match.startswith('^')):
-            match = '(^|[^\\s]*/)(' + match + ')(\\s|$)'
+            match = '(^|[^\\s]*/)' + match + '(\\s|$)'
         flags = 0
         if (rule.ignorecase):
             flags |= re.IGNORECASE

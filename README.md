@@ -65,7 +65,7 @@ or the parameters after it.
 Otherwise `niced` takes care of those for you by enclosing your rule with the
 following regular expression syntax:
 
-`(^|[^\\s]*/)(` and `)(\\s|$)`
+`(^|[^\\s]*/)` and `(\\s|$)`
 
 ### Examples:
 
