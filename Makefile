@@ -3,7 +3,7 @@ all: check
 check: syntax pylint pycodestyle
 
 syntax:
-	python -m py_compile niced
+	python3 -m py_compile niced
 	rm -rf __pycache__
 
 pylint:
