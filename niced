@@ -41,7 +41,7 @@ VERBOSE_YES                = 1
 VERBOSE_VERY               = 2
 VERBOSE_DEBUG              = 3
 
-DEFAULT_CONFIG_PATH        = '/etc/nicedrc'
+DEFAULT_CONFIG_PATH        = '/etc/niced.conf'
 DEFAULT_FULL_SCAN_INTERVAL = 10
 DEFAULT_VERBOSE            = VERBOSE_DEFAULT
 
@@ -176,8 +176,8 @@ class Config():
     def load():
         ''' method loading configuration from config file '''
         try:
-            with open(Config.path, mode = 'r', encoding = 'utf8') as rcfile:
-                for line in rcfile:
+            with open(Config.path, mode = 'r', encoding = 'utf8') as conffile:
+                for line in conffile:
                     line = line.strip()
                     if (line[0] == '#'):
                         continue
@@ -539,15 +539,17 @@ def sig_pdb(sig, frame):
 def arguments():
     ''' parse command line arguments '''
     parser = argparse.ArgumentParser(
+        prog = 'niced',
         description = 'a daemon renicing new and existing processes'
     )
     parser.add_argument(
-        '--rcfile',
-        help = 'use given configuration file instead of /etc/nicedrc'
+        '--config-file',
+        metavar='PATH',
+        help = f'use given configuration file instead of {DEFAULT_CONFIG_PATH}'
     )
     args = parser.parse_args()
-    if (args.rcfile is not None):
-        Config.path = args.rcfile
+    if (args.config_file is not None):
+        Config.path = args.config_file
 
 def main():
     ''' main entry point '''

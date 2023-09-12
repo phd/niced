@@ -24,7 +24,7 @@ Dependencies
 Configuration
 -------------
 
-Configuration is stored in `/etc/nicedrc` file.
+Configuration is stored in `/etc/niced.conf` file.
 
 Modifying `niced` behavior:
 

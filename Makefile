@@ -13,7 +13,7 @@ pycodestyle:
 	pycodestyle niced
 
 run:
-	sudo ./niced --rcfile ./nicedrc
+	sudo ./niced --config-file ./niced.conf
 
 install:
 ifneq ($(shell id -u), 0)
@@ -24,7 +24,7 @@ else
 	mkdir -p /etc/systemd/system
 	cp niced.service /lib/systemd/system/
 	mkdir -p /etc
-	cp nicedrc /etc/
+	cp niced.conf /etc/
 	systemctl daemon-reload
 endif
 
@@ -33,7 +33,7 @@ ifneq ($(shell id -u), 0)
 	sudo make $@
 else
 	mkdir -p /etc
-	cp nicedrc /etc/
+	cp niced.conf /etc/
 endif
 
 uninstall:
@@ -50,7 +50,7 @@ purge: uninstall
 ifneq ($(shell id -u), 0)
 	sudo make $@
 else
-	rm -f /etc/nicedrc
+	rm -f /etc/niced.conf
 endif
 
 service_status:
