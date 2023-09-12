@@ -75,7 +75,7 @@ class ConfigRuleAction:
 class ConfigRule():
     ''' parsed configuration line '''
     # pylint: disable=too-many-instance-attributes
-    match      = None
+    pattern    = None
     regex      = None
     ignorecase = None
     forced     = None
@@ -87,7 +87,7 @@ class ConfigRule():
     def __str__(self):
         return (
             'ConfigRule(\n'
-            f'         match={self.match        }\n'
+            f'       pattern={self.pattern      }\n'
             f'         regex={self.regex.pattern}\n'
             f'    ignorecase={self.ignorecase   }\n'
             f'        forced={self.forced       }\n'
@@ -156,14 +156,14 @@ class ConfigRule():
                     rule.oom = int_or_none(action[1])
                     if rule.oom is not None:
                         rule.oom = float(rule.oom)
-        rule.match = items[1]
-        match = rule.match
-        if (not match.startswith('(') and not match.startswith('^')):
-            match = '(^|[^\\s]*/)' + match + '(\\s|$)'
+        rule.pattern = items[1]
+        pattern = rule.pattern
+        if (not pattern.startswith('(') and not pattern.startswith('^')):
+            pattern = '(^|[^\\s]*/)' + pattern + '(\\s|$)'
         flags = 0
         if (rule.ignorecase):
             flags |= re.IGNORECASE
-        rule.regex = re.compile(match, flags)
+        rule.regex = re.compile(pattern, flags)
         return rule
 
 class Config():
