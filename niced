@@ -433,7 +433,7 @@ class Processor():
         return True
     @staticmethod
     def oom(pid, oom):
-        ''' adjust process protection from OOM killer '''
+        ''' adjust process protection from OOM killer, see proc(5) '''
         try:
             with open(
                 f'/proc/{pid}/oom_score_adj', 'w', encoding = 'utf-8'

@@ -1,0 +1,166 @@
+.TH niced 8
+
+." Copyright (C) 2023 Piotr Henryk Dabrowski <phd@phd.re>
+."
+." This program is free software: you can redistribute it and/or modify
+." it under the terms of the GNU General Public License as published by
+." the Free Software Foundation, either version 3 of the License, or
+." (at your option) any later version.
+."
+." This program is distributed in the hope that it will be useful,
+." but WITHOUT ANY WARRANTY; without even the implied warranty of
+." MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+." GNU General Public License for more details.
+."
+." You should have received a copy of the GNU General Public License
+." along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+.SH NAME
+
+\fBniced\fP - a daemon renicing new and existing processes
+
+.SH DESCRIPTION
+
+\fBniced\fP is a daemon which monitors new (using the Linux netlink connector)
+and existing processes and changes their 'niceness' according to configured
+rules.
+
+It supports modification of processes' \fBnice\fP, \fBionice\fP and
+\fBoom_adj\fP/\fBoom_score_adj\fP properties.
+
+This daemon was inspired by the \fBrenice\fP project and the configuration file
+should be backward compatible.
+
+.SH DAEMON
+
+\fBsystemd\fP service is provided:
+
+.IP
+.nf
+$ sudo systemctl enable niced.service
+$ sudo systemctl start niced.service
+.fi
+
+.SH SYNOPSIS
+
+\fBniced\fP [\fB--config-file\fP PATH] [\fB-h\fP|\fB--help\fP]
+
+.TP
+\fB--config-file\fP
+use given configuration file instead of \fB/etc/niced.conf\fP
+
+.SH CONFIGURATION
+
+Configuration is stored in the \fB/etc/niced.conf\fP file.
+
+Modifying \fBniced\fP behavior:
+
+- \fB@full_scan_interval = N\fP
+  in seconds, default is \fB10\fP
+.br
+- \fB@verbose = N\fP
+  \fB-2\fP silent,
+\fB-1\fP quiet,
+\fB0\fP default,
+\fB1\fP yes,
+\fB2\fP very,
+\fB3\fP debug
+
+Lines beginning with \fB#\fP are comments.
+
+.SS CONFIGURATION RULES
+
+Syntax:
+    \fBactions\fP \fBpattern\fP
+
+Actions can be separated with a comma, or written together without separators.
+
+.SS ACTIONS
+
+Syntax:
+    \fBaction\fP[\fBparameter\fP]
+
+Actions and parameters:
+
+- modifiers:
+    - \fBI\fP - case-insensitive pattern
+    - \fB!\fP - forced rule, reapplied every full scan
+    - \fBR\fP - recursive: \fB1...\fP, default is \fBinf\fP
+
+- nice:
+    - \fBn\fP - nice: \fB-20...19\fP, default is \fB10\fP
+
+- ionice:
+    - \fBr\fP - realtime ionice: \fB0...7\fP, default is \fB4\fP
+    - \fBb\fP - best-effort ionice: \fB0...7\fP, default is \fB4\fP
+    - \fBi\fP - idle ionice: \fB0...7\fP, default is \fB4\fP
+
+- oom:
+    - \fBo\fP - oom_adj: \fB-17...15\fP, default is \fB0\fP
+    - \fBO\fP - oom_score_adj: \fB-1000...1000\fP, default is \fB0\fP
+
+.SS PATTERNS
+
+Patterns are regular expressions, case-sensitive by default.
+
+If your pattern begins with \fB^\fP or \fB(\fP, it is matched literally. This
+means you have to keep in mind a potential full path before the executable name
+or the parameters after it.
+
+Otherwise \fBniced\fP takes care of those for you by enclosing your pattern with
+the following regular expression syntax:
+
+\fB(^|[^\\s]*/)\fP and \fB(\\s|$)\fP
+
+.SS EXAMPLES
+
+/etc/niced.conf:
+
+.IP
+.nf
+@full_scan_interval = 10
+@verbose = 3
+n-15 Xorg
+n-15 kwin_x11
+n-15 pulseaudio
+n-10 barrier
+n-10 mpv
+n0R1 plasmashell
+n-5  plasmashell
+n0R1 krunner
+n-5  krunner
+n0   konsole
+n1RI screen
+in10 ark
+in10 tar
+in10 unxz
+in10 dpkg
+in15 gcc
+in15 g++
+in15 cc1
+in15 cc1plus
+in15 dkms
+in15 gp
+.fi
+
+.SH FILES
+
+/etc/niced.conf
+
+.SH DEPENDENCIES
+
+- python3
+.br
+- forkstat
+
+.SH SEE ALSO
+
+nice(1), ionice(1), proc(5), forkstat(8)
+
+.SH BUGS
+
+Report bugs or ideas at https://github.com/phd/niced/issues
+
+.SH AUTHOR
+
+Copyright (C) 2023 Piotr Henryk Dabrowski <phd@phd.re>

@@ -1,10 +1,27 @@
 niced
 =====
 
+<!--
+    Copyright (C) 2023 Piotr Henryk Dabrowski <phd@phd.re>
+
+    This program is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    This program is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with this program.  If not, see <https://www.gnu.org/licenses/>.
+-->
+
 a daemon renicing new and existing processes
 
-About
------
+Description
+-----------
 
 `niced` is a daemon which monitors new (using the Linux netlink connector) and
 existing processes and changes their 'niceness' according to configured rules.
@@ -15,59 +32,80 @@ It supports modification of processes' `nice`, `ionice` and
 This daemon was inspired by the `renice` project and the configuration file
 should be backward compatible.
 
-Dependencies
-------------
+Daemon
+------
 
-- `python3`
-- `forkstat`
+`systemd` service is provided:
+
+    $ sudo systemctl enable niced.service
+    $ sudo systemctl start niced.service
+
+Synopsis
+--------
+
+`niced [--config-file PATH] [-h|--help]`
+
+`--config-file`<br>
+use given configuration file instead of `/etc/niced.conf`
 
 Configuration
 -------------
 
-Configuration is stored in `/etc/niced.conf` file.
+Configuration is stored in the `/etc/niced.conf` file.
 
 Modifying `niced` behavior:
 
-- `@full_scan_interval = N` in seconds, default is `10`
-- `@verbose = N`:
-  `-2` silent, `-1` quiet, `0` default, `1` verbose, `2` very, `3` debug
+- `@full_scan_interval = N`<br>
+  in seconds, default is `10`
+- `@verbose = N`<br>
+  `-2` silent, `-1` quiet, `0` default, `1` yes, `2` very, `3` debug
 
-### Configuration line:
+Lines beginning with `#` are comments.
 
-`actions regular-expression`
+### Configuration rules
 
-#### Actions:
+Syntax:<br>
+`actions pattern`
 
-Actions can be split with a comma, or written together without spacing.
+Actions can be separated with a comma, or written together without separators.
 
+#### Actions
+
+Syntax:<br>
 `action[parameter]`
 
+Actions and parameters:
+
 - modifiers:
-    - `I` - ignore case
-    - `!` - forced
-    - `R` - recursive: `1...`, None = `inf`
+    - `I` - case-insensitive pattern
+    - `!` - forced rule, reapplied every full scan
+    - `R` - recursive: `1...`, default is `inf`
 - nice:
-    - `n` - nice: `-20...19`, None = `10`
+    - `n` - nice: `-20...19`, default is `10`
 - ionice:
-    - `r` - realtime ionice: `0...7`, None = `4`
-    - `b` - best-effort ionice: `0...7`, None = `4`
-    - `i` - idle ionice: `0...7`, None = `4`
+    - `r` - realtime ionice: `0...7`, default is `4`
+    - `b` - best-effort ionice: `0...7`, default is `4`
+    - `i` - idle ionice: `0...7`, default is `4`
 - oom:
-    - `o` - oom_adj: `-17...15`, None = `0`
-    - `O` - oom_score_adj: `-1000...1000`, None = `0`
+    - `o` - oom_adj: `-17...15`, default is `0`
+    - `O` - oom_score_adj: `-1000...1000`, default is `0`
 
-#### Regular expression:
+#### Patterns
 
-If your regular expression begins with `^` or `(`, it is matched literally. This
-means you have to keep in mind a potential full path before the executable name
-or the parameters after it.
+Patterns are regular expressions, case-sensitive by default.
 
-Otherwise `niced` takes care of those for you by enclosing your rule with the
+If your pattern begins with `^` or `(`, it is matched literally. This means you
+have to keep in mind a potential full path before the executable name or the
+parameters after it.
+
+Otherwise `niced` takes care of those for you by enclosing your pattern with the
 following regular expression syntax:
 
-`(^|[^\\s]*/)` and `(\\s|$)`
+`(^|[^\s]*/)` and `(\s|$)`
 
-### Examples:
+### Examples
+
+`/etc/niced.conf`:
 
 ```
 @full_scan_interval = 10
@@ -94,3 +132,29 @@ in15 cc1plus
 in15 dkms
 in15 gp
 ```
+
+Files
+-----
+
+`/etc/niced.conf`
+
+Dependencies
+------------
+
+- `python3`
+- `forkstat`
+
+See also
+--------
+
+`nice(1)`, `ionice(1)`, `proc(5)`, `forkstat(8)`
+
+Bugs
+----
+
+Report bugs or ideas at https://github.com/phd/niced/issues
+
+Author
+------
+
+Copyright (C) 2023 Piotr Henryk Dabrowski &lt;phd@phd.re&gt;

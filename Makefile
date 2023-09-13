@@ -15,6 +15,9 @@ pycodestyle:
 run:
 	sudo ./niced --config-file ./niced.conf
 
+man:
+	man ./niced.8
+
 install:
 ifneq ($(shell id -u), 0)
 	sudo make $@
@@ -25,6 +28,8 @@ else
 	cp niced.service /lib/systemd/system/
 	mkdir -p /etc
 	cp niced.conf /etc/
+	mkdir -p /usr/share/man/man8/
+	cp niced.8 /usr/share/man/man8/
 	systemctl daemon-reload
 endif
 
