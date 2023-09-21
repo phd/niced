@@ -63,7 +63,7 @@ def eprint(*args, **kwargs):
 class ConfigRuleAction:
     ''' actions available for configuration rules '''
     IGNORECASE     = 'I'
-    FORCED         = '!'
+    FORCED         = 'F'
     RECURSIVE      = 'R'  # range:     1...    , None = inf
     NICE           = 'n'  # range:   -20...19  , None =  10
     IO_REALTIME    = 'r'  # range:     0...7   , None =   4

@@ -78,7 +78,7 @@ Actions and parameters:
 
 - modifiers:
     - `I` - case-insensitive pattern
-    - `!` - forced rule, reapplied every full scan
+    - `F` - forced rule, reapplied every full scan
     - `R` - recursive: `1...`, default is `inf`
 - nice:
     - `n` - nice: `-20...19`, default is `10`
