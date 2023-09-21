@@ -34,6 +34,9 @@ import time
 
 import psutil
 
+PROGRAM = 'niced'
+VERSION = '0.9.9'
+
 VERBOSE_SILENT             = -2
 VERBOSE_QUIET              = -1
 VERBOSE_DEFAULT            = 0
@@ -539,8 +542,13 @@ def sig_pdb(sig, frame):
 def arguments():
     ''' parse command line arguments '''
     parser = argparse.ArgumentParser(
-        prog = 'niced',
+        prog = PROGRAM,
         description = 'a daemon renicing new and existing processes'
+    )
+    parser.add_argument(
+        '-v', '--version',
+        action='store_true',
+        help = 'display current version and exit'
     )
     parser.add_argument(
         '--config-file',
@@ -548,6 +556,9 @@ def arguments():
         help = f'use given configuration file instead of {DEFAULT_CONFIG_PATH}'
     )
     args = parser.parse_args()
+    if (args.version):
+        log()(f'{PROGRAM} {VERSION}')
+        sys.exit(0)
     if (args.config_file is not None):
         Config.path = args.config_file
 
