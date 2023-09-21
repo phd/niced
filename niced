@@ -68,7 +68,7 @@ class ConfigRuleAction:
     NICE           = 'n'  # range:   -20...19  , None =  10
     IO_REALTIME    = 'r'  # range:     0...7   , None =   4
     IO_BEST_EFFORT = 'b'  # range:     0...7   , None =   4
-    IO_IDLE        = 'i'  # range:     0...7   , None =   4
+    IO_IDLE        = 'i'
     OOM_ADJ        = 'o'  # range:   -17...15  , None =   0
     OOM_SCORE_ADJ  = 'O'  # range: -1000...1000, None =   0
 

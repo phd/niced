@@ -85,7 +85,7 @@ Actions and parameters:
 - ionice:
     - `r` - realtime ionice: `0...7`, default is `4`
     - `b` - best-effort ionice: `0...7`, default is `4`
-    - `i` - idle ionice: `0...7`, default is `4`
+    - `i` - idle ionice
 - oom:
     - `o` - oom_adj: `-17...15`, default is `0`
     - `O` - oom_score_adj: `-1000...1000`, default is `0`
