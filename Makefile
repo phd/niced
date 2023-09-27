@@ -27,18 +27,10 @@ else
 	mkdir -p /etc/systemd/system
 	cp niced.service /lib/systemd/system/
 	mkdir -p /etc
-	cp niced.conf /etc/
+	cp -n niced.conf /etc/
 	mkdir -p /usr/share/man/man8/
 	cp niced.8 /usr/share/man/man8/
 	systemctl daemon-reload
-endif
-
-install_config:
-ifneq ($(shell id -u), 0)
-	sudo make $@
-else
-	mkdir -p /etc
-	cp niced.conf /etc/
 endif
 
 uninstall:
