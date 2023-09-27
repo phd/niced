@@ -103,7 +103,7 @@ class ConfigRule():
         )
     def matches(self, process_entry):
         ''' check if rule matches ProcessEntry or its parents if recursive '''
-        if (self.regex.match(process_entry.command)):
+        if (self.regex.fullmatch(process_entry.command)):
             return True
         if (self.recursive):
             try:
@@ -111,7 +111,7 @@ class ConfigRule():
                 rec = self.recursive
                 while (rec_proc and rec):
                     rec_process_entry = ProcessEntry.from_process(rec_proc)
-                    if (self.regex.match(rec_process_entry.command)):
+                    if (self.regex.fullmatch(rec_process_entry.command)):
                         return True
                     rec_proc = rec_proc.parent()
                     rec -= 1
@@ -162,7 +162,7 @@ class ConfigRule():
         rule.pattern = items[1]
         pattern = rule.pattern
         if (not pattern.startswith('(') and not pattern.startswith('^')):
-            pattern = '(^|[^\\s]*/)' + pattern + '(\\s|$)'
+            pattern = '([^\\s]*/)?' + pattern + '(\\s.*)?'
         flags = 0
         if (rule.ignorecase):
             flags |= re.IGNORECASE
@@ -232,7 +232,7 @@ class ForkstatEntry():
         line = re.sub('\\s+', ' ', line)
         items = line.split(' ')
         forkstat_entry = ForkstatEntry()
-        if (not re.match('[0-9]+:[0-9]+:[0-9]+', items[0])):
+        if (not re.fullmatch('[0-9]+:[0-9]+:[0-9]+', items[0])):
             return forkstat_entry
         forkstat_entry.valid = False
         forkstat_entry.time  = items[0]

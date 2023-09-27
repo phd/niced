@@ -94,6 +94,8 @@ Actions and parameters:
 
 Patterns are regular expressions, case-sensitive by default.
 
+The entire command including parameters is matched.
+
 If your pattern begins with `^` or `(`, it is matched literally. This means you
 have to keep in mind a potential full path before the executable name or the
 parameters after it.
@@ -101,7 +103,7 @@ parameters after it.
 Otherwise `niced` takes care of those for you by enclosing your pattern with the
 following regular expression syntax:
 
-`(^|[^\s]*/)` and `(\s|$)`
+`([^\s]*/)?` and `(\s.*)?`
 
 ### Examples
 
