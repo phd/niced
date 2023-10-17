@@ -127,6 +127,7 @@ in10 ark
 in10 tar
 in10 unxz
 in10 dpkg
+in10 mandb
 in15 gcc
 in15 g++
 in15 cc1
