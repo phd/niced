@@ -27,7 +27,7 @@ else
 	mkdir -p /etc/systemd/system
 	cp niced.service /lib/systemd/system/
 	mkdir -p /etc
-	cp -n niced.conf /etc/
+	cp --update=none niced.conf /etc/
 	mkdir -p /usr/share/man/man8/
 	cp niced.8 /usr/share/man/man8/
 	systemctl daemon-reload
