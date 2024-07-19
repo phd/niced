@@ -366,6 +366,8 @@ class Processor():
     @staticmethod
     def handle_process_entry(process_entry):
         ''' match and renice given ProcessEntry '''
+        if (not psutil.pid_exists(process_entry.pid)):
+            return
         with Processor._lock:
             already_processed = next(
                 (
